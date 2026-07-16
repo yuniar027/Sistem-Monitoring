@@ -18,8 +18,10 @@ use Filament\Schemas\Schema;
 class StokPaketResource extends Resource
 {
     protected static ?string $model = StokPaket::class;
-
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-cube';
+    protected static ?string $navigationLabel = 'Stok Paket';
+    protected static ?string $modelLabel = 'Stok Paket';
+    protected static ?string $pluralModelLabel = 'Stok Paket';
 
     public static function form(Schema $schema): Schema
     {

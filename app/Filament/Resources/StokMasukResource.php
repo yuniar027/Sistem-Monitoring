@@ -20,8 +20,10 @@ use Filament\Schemas\Schema;
 class StokMasukResource extends Resource
 {
     protected static ?string $model = StokMasuk::class;
-
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-inbox';
+    protected static ?string $navigationLabel = 'Stok Masuk';
+    protected static ?string $modelLabel = 'Stok Masuk';
+    protected static ?string $pluralModelLabel = 'Stok Masuk';
 
     public static function form(Schema $schema): Schema
     {

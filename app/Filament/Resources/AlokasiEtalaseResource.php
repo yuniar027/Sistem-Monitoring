@@ -17,8 +17,10 @@ use Filament\Schemas\Schema;
 class AlokasiEtalaseResource extends Resource
 {
     protected static ?string $model = AlokasiEtalase::class;
-
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-inbox-stack';
+    protected static ?string $navigationLabel = 'Alokasi Etalase';
+    protected static ?string $modelLabel = 'Alokasi Etalase';
+    protected static ?string $pluralModelLabel = 'Alokasi Etalase';
 
     public static function form(Schema $schema): Schema
     {
