@@ -5,8 +5,12 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PenjualanWebhookRequest;
 use App\Http\Requests\StokMasukWebhookRequest;
+use App\Http\Requests\AlokasiAiWebhookRequest;
+use App\Http\Requests\UpdateEtalaseWebhookRequest;
 use App\Jobs\ProcessPenjualanWebhook;
 use App\Jobs\ProcessStokMasukWebhook;
+use App\Jobs\ProcessAlokasiAiWebhook;
+use App\Jobs\ProcessUpdateEtalaseWebhook;
 use App\Models\WebhookLog;
 use App\Models\ProdukMaster;
 use App\Models\StokMentah;
@@ -133,4 +137,72 @@ class WebhookController extends Controller
             'alokasi_etalase' => $alokasiByChannel,
         ]);
     }
+
+        public function alokasiAi(AlokasiAiWebhookRequest $request): JsonResponse
+        {
+            $validated = $request->validated();
+            $externalId = $validated['external_id'];
+
+            $existingLog = WebhookLog::where('external_id', $externalId)->first();
+
+            if ($existingLog && $existingLog->processed_at !== null) {
+                return Response::json(['message' => 'Already processed'], 202);
+            }
+
+            if (! $existingLog) {
+                try {
+                    WebhookLog::create([
+                        'source' => 'n8n',
+                        'event_type' => 'alokasi_ai',
+                        'external_id' => $externalId,
+                        'payload' => $validated,
+                        'processed_at' => null,
+                    ]);
+                } catch (QueryException $exception) {
+                    $existingLog = WebhookLog::where('external_id', $externalId)->first();
+
+                    if ($existingLog && $existingLog->processed_at !== null) {
+                        return Response::json(['message' => 'Already processed'], 202);
+                    }
+                }
+            }
+
+            ProcessAlokasiAiWebhook::dispatch($validated);
+
+            return Response::json(['message' => 'Accepted'], 202);
+        }
+
+        public function updateEtalase(UpdateEtalaseWebhookRequest $request): JsonResponse
+        {
+            $validated = $request->validated();
+            $externalId = $validated['external_id'];
+
+            $existingLog = WebhookLog::where('external_id', $externalId)->first();
+
+            if ($existingLog && $existingLog->processed_at !== null) {
+                return Response::json(['message' => 'Already processed'], 202);
+            }
+
+            if (! $existingLog) {
+                try {
+                    WebhookLog::create([
+                        'source' => 'n8n',
+                        'event_type' => 'update_etalase',
+                        'external_id' => $externalId,
+                        'payload' => $validated,
+                        'processed_at' => null,
+                    ]);
+                } catch (QueryException $exception) {
+                    $existingLog = WebhookLog::where('external_id', $externalId)->first();
+
+                    if ($existingLog && $existingLog->processed_at !== null) {
+                        return Response::json(['message' => 'Already processed'], 202);
+                    }
+                }
+            }
+
+            ProcessUpdateEtalaseWebhook::dispatch($validated);
+
+            return Response::json(['message' => 'Accepted'], 202);
+        }
 }
