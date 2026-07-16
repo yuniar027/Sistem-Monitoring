@@ -8,9 +8,14 @@ use App\Http\Requests\StokMasukWebhookRequest;
 use App\Jobs\ProcessPenjualanWebhook;
 use App\Jobs\ProcessStokMasukWebhook;
 use App\Models\WebhookLog;
+use App\Models\ProdukMaster;
+use App\Models\StokMentah;
+use App\Models\StokPaket;
+use App\Models\AlokasiEtalase;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Http\Request;
 
 class WebhookController extends Controller
 {
@@ -80,5 +85,52 @@ class WebhookController extends Controller
         ProcessPenjualanWebhook::dispatch($validated);
 
         return Response::json(['message' => 'Accepted'], 202);
+    }
+
+    public function stok(Request $request, string $sku): JsonResponse
+    {
+        $produk = ProdukMaster::where('sku', $sku)->first();
+
+        if (! $produk) {
+            return Response::json(['message' => 'SKU not found: ' . $sku], 404);
+        }
+
+        $stokMentah = StokMentah::where('sku', $sku)->first();
+        $stokMentahQty = $stokMentah ? (int) $stokMentah->kuantitas_tersedia : 0;
+
+        $paketTotals = StokPaket::where('sku', $sku)
+            ->selectRaw("status, COALESCE(SUM(kuantitas_per_paket * jumlah_paket), 0) as total")
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->toArray();
+
+        $paketBelum = isset($paketTotals['belum_distribusi']) ? (int) $paketTotals['belum_distribusi'] : 0;
+        $paketSudah = isset($paketTotals['sudah_distribusi']) ? (int) $paketTotals['sudah_distribusi'] : 0;
+
+        $alokasiRows = AlokasiEtalase::where('sku', $sku)
+            ->where('status', 'aktif')
+            ->selectRaw('channel, SUM(kuantitas_dialokasikan) as kuantitas_dialokasikan, SUM(kuantitas_terjual) as kuantitas_terjual, SUM(kuantitas_sisa) as kuantitas_sisa')
+            ->groupBy('channel')
+            ->get();
+
+        $alokasiByChannel = [];
+
+        foreach ($alokasiRows as $row) {
+            $alokasiByChannel[$row->channel] = [
+                'kuantitas_dialokasikan' => (int) $row->kuantitas_dialokasikan,
+                'kuantitas_terjual' => (int) $row->kuantitas_terjual,
+                'kuantitas_sisa' => (int) $row->kuantitas_sisa,
+            ];
+        }
+
+        return Response::json([
+            'sku' => $sku,
+            'stok_mentah' => $stokMentahQty,
+            'stok_paket' => [
+                'belum_distribusi' => $paketBelum,
+                'sudah_distribusi' => $paketSudah,
+            ],
+            'alokasi_etalase' => $alokasiByChannel,
+        ]);
     }
 }
