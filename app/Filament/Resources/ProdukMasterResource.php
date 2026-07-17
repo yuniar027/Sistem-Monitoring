@@ -15,6 +15,7 @@ use Filament\Schemas\Schema;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Select;
 
 class ProdukMasterResource extends Resource
 {
@@ -28,6 +29,12 @@ class ProdukMasterResource extends Resource
     {
         return $schema->schema([
             TextInput::make('sku')->required()->unique(ignoreRecord: true),
+            Select::make('tipe_produk')
+                ->options([
+                    'simple' => 'Simple',
+                    'rakitan' => 'Rakitan',
+                ])
+                ->required(),
             TextInput::make('nama_produk')->required(),
             TextInput::make('satuan_jual')->required(),
             TextInput::make('satuan_beli')->required(),

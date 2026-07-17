@@ -12,7 +12,7 @@ class ProdukMaster extends Model
     protected $table = 'produk_master';
 
     protected $fillable = [
-        'sku', 'nama_produk', 'satuan_jual', 'satuan_beli', 'isi_per_satuan_beli', 'kategori', 'harga_modal_default', 'target_stok_minimum',
+        'sku', 'nama_produk', 'satuan_jual', 'satuan_beli', 'isi_per_satuan_beli', 'kategori', 'harga_modal_default', 'target_stok_minimum','tipe_produk',
     ];
 
     protected $casts = [
