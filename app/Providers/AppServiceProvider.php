@@ -22,6 +22,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+
         // Morph map for `jurnal_umum.sumber_tipe` polymorphic relation
         Relation::morphMap([
             'stok_masuk' => \App\Models\StokMasuk::class,
@@ -29,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
             'tugas_packing' => \App\Models\TugasPacking::class,
             'alokasi_etalase' => \App\Models\AlokasiEtalase::class,
             'stok_paket' => \App\Models\StokPaket::class,
+            'bahan_baku_masuk' => \App\Models\BahanBakuMasuk::class,
         ], false);
 
         // Register observer to handle stok_masuk -> stok_mentah conversion

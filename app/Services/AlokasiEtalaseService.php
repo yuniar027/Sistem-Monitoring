@@ -69,7 +69,7 @@ class AlokasiEtalaseService
                 $remainingQuantity = 0;
                 break;
             }
-
+            
             return AlokasiEtalase::create([
                 'sku' => $sku,
                 'channel' => $data['channel'],

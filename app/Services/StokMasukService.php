@@ -2,30 +2,22 @@
 
 namespace App\Services;
 
+use App\Models\JurnalUmum;
+use App\Models\ProdukMaster;
 use App\Models\StokMasuk;
 use App\Models\StokMentah;
-use App\Models\ProdukMaster;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
 class StokMasukService
 {
-    /**
-     * Record incoming stock and update raw stock (pcs) within a DB transaction.
-     *
-     * @param array $data
-     * @return StokMasuk
-     * @throws Exception
-     */
     public function catatStokMasuk(array $data): StokMasuk
     {
         return DB::transaction(function () use ($data) {
-            // Create stok_masuk without firing model events (observer is a safety net)
             $stokMasuk = StokMasuk::withoutEvents(function () use ($data) {
                 return StokMasuk::create($data);
             });
 
-            // Lock produk row to get latest isi_per_satuan_beli
             $produk = ProdukMaster::where('sku', $stokMasuk->sku)->lockForUpdate()->first();
 
             if (! $produk) {
@@ -35,16 +27,38 @@ class StokMasukService
             $isiPerSatuan = (int) $produk->isi_per_satuan_beli;
             $kuantitasPcs = (int) $stokMasuk->kuantitas * $isiPerSatuan;
 
-            // Ensure stok_mentah exists
             StokMentah::firstOrCreate([
                 'sku' => $stokMasuk->sku,
             ], [
                 'kuantitas_tersedia' => 0,
             ]);
 
-            // Atomic increment on stok_mentah
             StokMentah::where('sku', $stokMasuk->sku)
                 ->increment('kuantitas_tersedia', $kuantitasPcs, ['updated_at' => now()]);
+
+            // Pencatatan jurnal otomatis: debit persediaan, kredit kas
+            $akun = config('akun');
+            $nominal = $stokMasuk->total_nominal;
+
+            JurnalUmum::create([
+                'tanggal' => $stokMasuk->tanggal,
+                'kode_akun' => $akun['persediaan'],
+                'keterangan' => 'Pembelian stok masuk: ' . $stokMasuk->sku,
+                'debit' => $nominal,
+                'kredit' => 0,
+                'sumber_tipe' => 'stok_masuk',
+                'sumber_id' => $stokMasuk->id,
+            ]);
+
+            JurnalUmum::create([
+                'tanggal' => $stokMasuk->tanggal,
+                'kode_akun' => $akun['kas'],
+                'keterangan' => 'Pembelian stok masuk: ' . $stokMasuk->sku,
+                'debit' => 0,
+                'kredit' => $nominal,
+                'sumber_tipe' => 'stok_masuk',
+                'sumber_id' => $stokMasuk->id,
+            ]);
 
             return $stokMasuk;
         });
