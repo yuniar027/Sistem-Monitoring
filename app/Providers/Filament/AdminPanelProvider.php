@@ -29,6 +29,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->brandName('Umma IMS')
             ->login()
+            ->databaseNotifications()
             ->colors([
                 'primary' => Color::hex('#7cd259'),
             ])

@@ -12,12 +12,14 @@ class ProdukMaster extends Model
     protected $table = 'produk_master';
 
     protected $fillable = [
-        'sku', 'nama_produk', 'satuan_jual', 'satuan_beli', 'isi_per_satuan_beli', 'kategori', 'harga_modal_default', 'target_stok_minimum','tipe_produk',
+        'sku', 'nama_produk', 'satuan_jual', 'satuan_beli', 'isi_per_satuan_beli',
+        'kategori', 'harga_modal_default', 'harga_jual_referensi', 'target_stok_minimum', 'tipe_produk',
     ];
 
     protected $casts = [
         'isi_per_satuan_beli' => 'integer',
         'harga_modal_default' => 'decimal:2',
+        'harga_jual_referensi' => 'decimal:2',
         'target_stok_minimum' => 'integer',
     ];
 

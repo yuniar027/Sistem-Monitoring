@@ -40,7 +40,8 @@ class ProdukMasterResource extends Resource
             TextInput::make('satuan_beli')->required(),
             TextInput::make('isi_per_satuan_beli')->required()->numeric()->default(1),
             TextInput::make('kategori')->nullable(),
-            TextInput::make('harga_modal_default')->numeric()->nullable(),
+            TextInput::make('harga_modal_default')->numeric()->nullable()->prefix('Rp'),
+            TextInput::make('harga_jual_referensi')->numeric()->nullable()->prefix('Rp'),
             TextInput::make('target_stok_minimum')->numeric()->default(0),
         ]);
     }
@@ -51,9 +52,11 @@ class ProdukMasterResource extends Resource
             ->columns([
                 TextColumn::make('sku')->sortable()->searchable(),
                 TextColumn::make('nama_produk')->limit(50)->searchable(),
+                TextColumn::make('tipe_produk')->badge(),
                 TextColumn::make('satuan_jual'),
                 TextColumn::make('satuan_beli'),
                 TextColumn::make('isi_per_satuan_beli'),
+                TextColumn::make('harga_jual_referensi')->money('IDR')->sortable(),
                 TextColumn::make('target_stok_minimum'),
             ])
             ->filters([
