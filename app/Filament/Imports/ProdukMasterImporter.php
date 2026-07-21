@@ -59,6 +59,10 @@ class ProdukMasterImporter extends Importer
      */
     public function resolveRecord(): ProdukMaster
     {
+        if (empty($this->data['tipe_produk'])) {
+            $this->data['tipe_produk'] = 'simple';
+        }
+
         return ProdukMaster::firstOrNew([
             'sku' => $this->data['sku'],
         ]);
