@@ -35,8 +35,8 @@ class BahanBakuResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('kode_bahan')->sortable(),
-                TextColumn::make('nama_bahan')->sortable(),
+                TextColumn::make('kode_bahan')->sortable()->searchable(),
+                TextColumn::make('nama_bahan')->sortable()->searchable(),
                 TextColumn::make('satuan_beli'),
                 TextColumn::make('isi_per_satuan_beli'),
             ]);
