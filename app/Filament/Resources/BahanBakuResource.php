@@ -49,5 +49,6 @@ class BahanBakuResource extends Resource
             'create' => Pages\CreateBahanBaku::route('/create'),
             'edit' => Pages\EditBahanBaku::route('/{record}/edit'),
         ];
+
     }
 }
