@@ -7,10 +7,12 @@ use App\Http\Requests\PenjualanWebhookRequest;
 use App\Http\Requests\StokMasukWebhookRequest;
 use App\Http\Requests\AlokasiAiWebhookRequest;
 use App\Http\Requests\UpdateEtalaseWebhookRequest;
+use App\Http\Requests\BahanBakuMasukWebhookRequest;
 use App\Jobs\ProcessPenjualanWebhook;
 use App\Jobs\ProcessStokMasukWebhook;
 use App\Jobs\ProcessAlokasiAiWebhook;
 use App\Jobs\ProcessUpdateEtalaseWebhook;
+use App\Jobs\ProcessBahanBakuMasukWebhook;
 use App\Models\WebhookLog;
 use App\Models\ProdukMaster;
 use App\Models\StokMentah;
@@ -53,6 +55,40 @@ class WebhookController extends Controller
         }
 
         ProcessStokMasukWebhook::dispatch($validated);
+
+        return Response::json(['message' => 'Accepted'], 202);
+    }
+
+    public function bahanBakuMasuk(BahanBakuMasukWebhookRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $externalId = $validated['external_id'];
+
+        $existingLog = WebhookLog::where('external_id', $externalId)->first();
+
+        if ($existingLog && $existingLog->processed_at !== null) {
+            return Response::json(['message' => 'Already processed'], 202);
+        }
+
+        if (! $existingLog) {
+            try {
+                WebhookLog::create([
+                    'source' => 'n8n',
+                    'event_type' => 'bahan_baku_masuk',
+                    'external_id' => $externalId,
+                    'payload' => $validated,
+                    'processed_at' => null,
+                ]);
+            } catch (QueryException $exception) {
+                $existingLog = WebhookLog::where('external_id', $externalId)->first();
+
+                if ($existingLog && $existingLog->processed_at !== null) {
+                    return Response::json(['message' => 'Already processed'], 202);
+                }
+            }
+        }
+
+        ProcessBahanBakuMasukWebhook::dispatch($validated);
 
         return Response::json(['message' => 'Accepted'], 202);
     }

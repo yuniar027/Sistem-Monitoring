@@ -16,7 +16,6 @@ class AlokasiAiWebhookRequest extends FormRequest
         return [
             'external_id' => ['required', 'string'],
             'sku' => ['required', 'string'],
-            'kuantitas_per_paket' => ['required', 'integer', 'min:1'],
             'jumlah_paket' => ['required', 'integer', 'min:1'],
             'tanggal_dibuat' => ['nullable', 'date'],
             'alokasi' => ['required', 'array', 'min:1'],

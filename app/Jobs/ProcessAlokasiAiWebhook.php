@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ErrorLog;
 use App\Models\WebhookLog;
-use App\Services\StokPaketService;
+use App\Services\RakitPaketService;
 use App\Services\AlokasiEtalaseService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,13 +25,12 @@ class ProcessAlokasiAiWebhook implements ShouldQueue
         $this->data = $data;
     }
 
-    public function handle(StokPaketService $paketService, AlokasiEtalaseService $alokasiService): void
+    public function handle(RakitPaketService $rakitService, AlokasiEtalaseService $alokasiService): void
     {
-        // create paket
+        // rakit paket dari resep (BOM) - otomatis hitung & kurangi bahan baku
         try {
-            $paketService->buatPaket([
+            $rakitService->rakitPaket([
                 'sku' => $this->data['sku'],
-                'kuantitas_per_paket' => $this->data['kuantitas_per_paket'],
                 'jumlah_paket' => $this->data['jumlah_paket'],
                 'tanggal_dibuat' => $this->data['tanggal_dibuat'] ?? now()->toDateString(),
             ]);
@@ -43,6 +42,11 @@ class ProcessAlokasiAiWebhook implements ShouldQueue
                 'resolved' => false,
                 'created_at' => now(),
             ]);
+
+            WebhookLog::where('external_id', $this->data['external_id'])
+                ->update(['processed_at' => now()]);
+
+            return;
         }
 
         // create allocations
