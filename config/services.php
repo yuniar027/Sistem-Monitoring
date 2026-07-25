@@ -36,4 +36,8 @@ return [
     ],
 
     'webhook_secret' => env('WEBHOOK_SECRET'),
+
+    'anthropic' => [
+       'api_key' => env('ANTHROPIC_API_KEY'),
+   ],
 ];
