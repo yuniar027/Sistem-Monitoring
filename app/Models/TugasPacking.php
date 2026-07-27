@@ -27,6 +27,6 @@ class TugasPacking extends Model
 
     public function assignedTo()
     {
-        return $this->belongsTo(User::class, 'ditugaskan_ke');
+        return $this->belongsTo(Packer::class, 'ditugaskan_ke');
     }
 }
