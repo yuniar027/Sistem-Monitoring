@@ -9,4 +9,5 @@ Route::middleware(['webhook.signature'])->group(function () {
     Route::post('/webhook/alokasi-ai', [\App\Http\Controllers\WebhookController::class, 'alokasiAi']);
     Route::post('/webhook/update-etalase', [\App\Http\Controllers\WebhookController::class, 'updateEtalase']);
     Route::get('/stok/{sku}', [\App\Http\Controllers\WebhookController::class, 'stok']);
+    Route::post('/webhook/petakan-bahan-baku', [\App\Http\Controllers\WebhookController::class, 'petakanBahanBaku']);
 });

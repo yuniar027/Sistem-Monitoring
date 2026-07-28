@@ -22,6 +22,8 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Http\Request;
+use App\Http\Requests\PetakanBahanBakuWebhookRequest;
+use App\Services\PemetaanBahanBakuService;
 
 class WebhookController extends Controller
 {
@@ -91,6 +93,20 @@ class WebhookController extends Controller
         ProcessBahanBakuMasukWebhook::dispatch($validated);
 
         return Response::json(['message' => 'Accepted'], 202);
+    }
+
+    public function petakanBahanBaku(PetakanBahanBakuWebhookRequest $request, PemetaanBahanBakuService $service): \Illuminate\Http\JsonResponse
+    {
+        $validated = $request->validated();
+        $hasil = $service->petakanSatu($validated['nama_item']);
+
+        return \Illuminate\Support\Facades\Response::json([
+            'nama_item' => $hasil['nama_item'],
+            'kode_bahan' => $hasil['kode_bahan'],
+            'nama_bahan' => $hasil['nama_bahan'],
+            'metode' => $hasil['metode'],
+            'yakin' => in_array($hasil['metode'], ['heuristik', 'ai']),
+        ]);
     }
 
     public function penjualan(PenjualanWebhookRequest $request): JsonResponse
