@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Response;
 use Illuminate\Http\Request;
 use App\Http\Requests\PetakanBahanBakuWebhookRequest;
 use App\Services\PemetaanBahanBakuService;
+use App\Models\SaranPemetaanBahanBaku;
 
 class WebhookController extends Controller
 {
@@ -99,6 +100,16 @@ class WebhookController extends Controller
     {
         $validated = $request->validated();
         $hasil = $service->petakanSatu($validated['nama_item']);
+
+        if ($hasil['metode'] === 'tidak_ditemukan') {
+            SaranPemetaanBahanBaku::create([
+                'nama_item' => $hasil['nama_item'],
+                'kode_bahan_disarankan' => $hasil['kode_bahan'],
+                'nama_bahan' => $hasil['nama_bahan'],
+                'metode' => $hasil['metode'],
+                'catatan' => $hasil['skor_atau_alasan'] ?? null,
+            ]);
+        }
 
         return \Illuminate\Support\Facades\Response::json([
             'nama_item' => $hasil['nama_item'],
