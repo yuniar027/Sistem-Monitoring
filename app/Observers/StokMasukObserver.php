@@ -11,11 +11,18 @@ class StokMasukObserver
 {
     /**
      * Handle the StokMasuk "created" event.
+     *
+     * CATATAN: Jalur utama pembuatan StokMasuk (lewat form Filament /
+     * StokMasukService::catatStokMasuk()) sengaja pakai withoutEvents(),
+     * jadi observer ini TIDAK terpanggil di jalur itu. Logic yang sama
+     * (increment StokMentah, buat StokPaket untuk produk simple) sudah
+     * dipindahkan langsung ke StokMasukService. Observer ini dibiarkan
+     * terdaftar untuk jaga-jaga kalau ada jalur lain yang create StokMasuk
+     * tanpa withoutEvents().
      */
     public function created(StokMasuk $stokMasuk): void
     {
         DB::transaction(function () use ($stokMasuk) {
-            // Lock produk row for update to get latest isi_per_satuan_beli
             $produk = $stokMasuk->produk()->lockForUpdate()->first();
 
             if (! $produk) {
@@ -23,17 +30,14 @@ class StokMasukObserver
             }
 
             $isiPerSatuan = (int) $produk->isi_per_satuan_beli;
-
             $kuantitasPcs = (int) $stokMasuk->kuantitas * $isiPerSatuan;
 
-            // Ensure stok_mentah exists for the SKU
             StokMentah::firstOrCreate([
                 'sku' => $stokMasuk->sku,
             ], [
                 'kuantitas_tersedia' => 0,
             ]);
 
-            // Atomic increment to avoid race conditions. Also update timestamp.
             StokMentah::where('sku', $stokMasuk->sku)
                 ->increment('kuantitas_tersedia', $kuantitasPcs, ['updated_at' => now()]);
         });

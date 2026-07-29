@@ -11,6 +11,10 @@ use Exception;
 
 class BahanBakuMasukService
 {
+    /**
+     * Dipakai form Create manual (CreateBahanBakuMasuk::handleRecordCreation).
+     * Perilaku TIDAK BERUBAH dari sebelumnya — bikin record baru lalu proses efeknya.
+     */
     public function catatBahanBakuMasuk(array $data): BahanBakuMasuk
     {
         return DB::transaction(function () use ($data) {
@@ -18,6 +22,19 @@ class BahanBakuMasukService
                 return BahanBakuMasuk::create($data);
             });
 
+            return $this->prosesEfekBahanBakuMasuk($bahanBakuMasuk);
+        });
+    }
+
+    /**
+     * Dipakai BahanBakuMasukImporter (afterSave hook).
+     * Menerima record yang SUDAH tersimpan (dari proses save standar Filament Importer)
+     * — tidak membuat record baru, hanya menjalankan efek samping: update stok + jurnal.
+     * Dipisah dari catatBahanBakuMasuk() supaya importer tidak menyebabkan row/jurnal dobel.
+     */
+    public function prosesEfekBahanBakuMasuk(BahanBakuMasuk $bahanBakuMasuk): BahanBakuMasuk
+    {
+        return DB::transaction(function () use ($bahanBakuMasuk) {
             $bahanBaku = BahanBaku::where('id', $bahanBakuMasuk->bahan_baku_id)->lockForUpdate()->first();
 
             if (! $bahanBaku) {

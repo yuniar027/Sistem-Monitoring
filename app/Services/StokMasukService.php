@@ -6,6 +6,7 @@ use App\Models\JurnalUmum;
 use App\Models\ProdukMaster;
 use App\Models\StokMasuk;
 use App\Models\StokMentah;
+use App\Models\StokPaket;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
@@ -36,7 +37,23 @@ class StokMasukService
             StokMentah::where('sku', $stokMasuk->sku)
                 ->increment('kuantitas_tersedia', $kuantitasPcs, ['updated_at' => now()]);
 
+            // Produk tipe "simple" tidak melalui proses rakit (RakitPaketService).
+            // Konfirmasi Umma: begitu barang datang dari pabrik, langsung bisa dijual.
+            // Maka begitu masuk gudang, langsung dianggap siap distribusi — dicatat
+            // sebagai StokPaket juga, supaya AlokasiEtalaseService bisa membacanya.
+            if ($produk->tipe_produk === 'simple') {
+                StokPaket::create([
+                    'sku' => $stokMasuk->sku,
+                    'kuantitas_per_paket' => 1,
+                    'jumlah_paket' => $kuantitasPcs,
+                    'tanggal_dibuat' => $stokMasuk->tanggal,
+                    'status' => 'belum_distribusi',
+                ]);
+            }
+
             // Pencatatan jurnal otomatis: debit persediaan, kredit kas
+            // TODO: asumsi cash saat ini. Perlu direvisi kalau ternyata ada
+            // transaksi tempo (kredit Hutang Usaha) — menunggu klarifikasi Umma.
             $akun = config('akun');
             $nominal = $stokMasuk->total_nominal;
 
