@@ -40,4 +40,9 @@ return [
     'anthropic' => [
        'api_key' => env('ANTHROPIC_API_KEY'),
    ],
+
+   'n8n' => [
+    'import_webhook_url' => env('N8N_IMPORT_WEBHOOK_URL'),
+    'webhook_token'       => env('N8N_WEBHOOK_TOKEN'),
+    ],
 ];

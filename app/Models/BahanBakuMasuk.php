@@ -19,6 +19,7 @@ class BahanBakuMasuk extends Model
         'harga_satuan',
         'biaya_kirim',
         'total_nominal',
+        'status_pembayaran',
     ];
 
     protected $casts = [

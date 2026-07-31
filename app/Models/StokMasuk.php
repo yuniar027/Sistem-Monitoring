@@ -12,7 +12,7 @@ class StokMasuk extends Model
     protected $table = 'stok_masuk';
 
     protected $fillable = [
-        'tanggal', 'sku', 'vendor', 'kuantitas', 'harga_satuan', 'biaya_kirim', 'total_nominal',
+        'tanggal', 'sku', 'vendor', 'kuantitas', 'harga_satuan', 'biaya_kirim', 'total_nominal', 'status_pembayaran',
     ];
 
     protected $casts = [

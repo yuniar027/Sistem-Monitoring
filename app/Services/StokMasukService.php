@@ -51,9 +51,8 @@ class StokMasukService
                 ]);
             }
 
-            // Pencatatan jurnal otomatis: debit persediaan, kredit kas
-            // TODO: asumsi cash saat ini. Perlu direvisi kalau ternyata ada
-            // transaksi tempo (kredit Hutang Usaha) — menunggu klarifikasi Umma.
+            // Pencatatan jurnal otomatis: debit persediaan, kredit hutang usaha
+            // (konfirmasi Umma: pembelian pabrik selalu tempo, dibayar mingguan)
             $akun = config('akun');
             $nominal = $stokMasuk->total_nominal;
 
@@ -69,7 +68,7 @@ class StokMasukService
 
             JurnalUmum::create([
                 'tanggal' => $stokMasuk->tanggal,
-                'kode_akun' => $akun['kas'],
+                'kode_akun' => $akun['hutang_usaha'],
                 'keterangan' => 'Pembelian stok masuk: ' . $stokMasuk->sku,
                 'debit' => 0,
                 'kredit' => $nominal,

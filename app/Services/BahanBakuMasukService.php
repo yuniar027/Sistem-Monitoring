@@ -69,7 +69,7 @@ class BahanBakuMasukService
 
             JurnalUmum::create([
                 'tanggal' => $bahanBakuMasuk->tanggal,
-                'kode_akun' => $akun['kas'],
+                'kode_akun' => $akun['hutang_usaha'],
                 'keterangan' => 'Pembelian bahan baku: ' . $bahanBaku->nama_bahan,
                 'debit' => 0,
                 'kredit' => $nominal,

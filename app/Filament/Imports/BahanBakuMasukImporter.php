@@ -17,10 +17,10 @@ class BahanBakuMasukImporter extends Importer
     {
         return [
             ImportColumn::make('kode_bahan')
+                ->label('Kode Bahan (kode resmi pabrik)')
                 ->requiredMapping()
                 ->rules(['required', 'string', 'exists:bahan_baku,kode_bahan'])
-                // kode_bahan bukan kolom di tabel bahan_baku_masuk, jadi jangan
-                // di-set otomatis oleh Filament — resolveRecord() yang urus lookup-nya.
+                ->example('SLBD0160')
                 ->fillRecordUsing(fn () => null),
 
             ImportColumn::make('tanggal')
@@ -53,8 +53,6 @@ class BahanBakuMasukImporter extends Importer
 
     public function resolveRecord(): BahanBakuMasuk
     {
-        // Setiap baris = 1 transaksi pembelian baru, bukan upsert
-        // (beda dengan BahanBakuImporter yang pakai firstOrNew untuk master data)
         $bahanBaku = BahanBaku::where('kode_bahan', $this->data['kode_bahan'])->first();
 
         $record = new BahanBakuMasuk();
@@ -65,7 +63,6 @@ class BahanBakuMasukImporter extends Importer
 
     protected function beforeSave(): void
     {
-        // Kalau kolom total_nominal kosong di file Excel, hitung otomatis
         if (empty($this->record->total_nominal)) {
             $this->record->total_nominal =
                 ((float) $this->record->kuantitas * (float) $this->record->harga_satuan)
@@ -75,9 +72,6 @@ class BahanBakuMasukImporter extends Importer
 
     protected function afterSave(): void
     {
-        // Record sudah tersimpan lewat proses save standar Filament (sekali, tanpa duplikasi).
-        // Di sini cuma jalankan efek samping: update stok + jurnal — method yang sama
-        // persis dipakai form Create manual, supaya hasilnya konsisten.
         app(BahanBakuMasukService::class)->prosesEfekBahanBakuMasuk($this->record);
     }
 
@@ -85,8 +79,18 @@ class BahanBakuMasukImporter extends Importer
     {
         $body = 'Import bahan baku masuk selesai: ' . number_format($import->successful_rows) . ' baris berhasil diproses.';
 
-        if ($failedRowsCount = $import->getFailedRowsCount()) {
-            $body .= ' ' . number_format($failedRowsCount) . ' baris gagal — lihat notifikasi kegagalan untuk detail.';
+        $failedRowsCount = $import->getFailedRowsCount();
+
+        if ($failedRowsCount) {
+            $body .= ' ' . number_format($failedRowsCount) . ' baris gagal.';
+
+            // Kalau semua/hampir semua baris gagal, kemungkinan besar file yang diupload
+            // salah — bukan file kode bahan resmi, tapi nama item mentah dari invoice.
+            if ($failedRowsCount >= $import->total_rows * 0.5) {
+                $body .= ' Catatan: kalau kode bahan yang gagal terlihat seperti nama item '
+                    . '(bukan kode resmi seperti SLBD0160), kemungkinan file ini adalah invoice mentah. '
+                    . 'Gunakan halaman "Import Transaksi Harian" untuk file jenis itu, bukan tombol ini.';
+            }
         }
 
         return $body;
