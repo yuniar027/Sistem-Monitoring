@@ -116,7 +116,7 @@ class WebhookController extends Controller
             'kode_bahan' => $hasil['kode_bahan'],
             'nama_bahan' => $hasil['nama_bahan'],
             'metode' => $hasil['metode'],
-            'yakin' => in_array($hasil['metode'], ['heuristik', 'ai']),
+            'yakin' => in_array($hasil['metode'], ['heuristik', 'ai', 'manual']),
         ]);
     }
 

@@ -5,12 +5,29 @@ namespace App\Filament\Widgets;
 use App\Models\JurnalUmum;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 
 class LabaRugiWidget extends BaseWidget
 {
+    use InteractsWithPageFilters;
+
     protected function getStats(): array
     {
-        $rows = JurnalUmum::selectRaw('kode_akun, SUM(debit) as total_debit, SUM(kredit) as total_kredit')
+        $tanggalAwal = $this->pageFilters['tanggal_awal'] ?? null;
+        $tanggalAkhir = $this->pageFilters['tanggal_akhir'] ?? null;
+
+        $query = JurnalUmum::query();
+
+        if ($tanggalAwal) {
+            $query->whereDate('tanggal', '>=', $tanggalAwal);
+        }
+
+        if ($tanggalAkhir) {
+            $query->whereDate('tanggal', '<=', $tanggalAkhir);
+        }
+
+        $rows = $query
+            ->selectRaw('kode_akun, SUM(debit) as total_debit, SUM(kredit) as total_kredit')
             ->groupBy('kode_akun')
             ->get()
             ->keyBy('kode_akun');

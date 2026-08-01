@@ -40,11 +40,19 @@ class HeuristikBahanBakuService
         return $hasil;
     }
 
-    private function tokenisasi(string $teks): array
+    private const SINONIM = [
+        'st' => 'setelan',
+        'cln' => 'celana',
+        'pd' => 'pendek',
+        'pj' => 'panjang',
+    ];
+
+      private function tokenisasi(string $teks): array
     {
         $teks = strtolower($teks);
         $teks = preg_replace('/[^a-z0-9\s]/', ' ', $teks);
         $kata = array_filter(explode(' ', $teks), fn ($k) => strlen($k) >= 2);
+        $kata = array_map(fn ($k) => self::SINONIM[$k] ?? $k, $kata);
 
         // Buang kata-kata generik yang tidak membantu identifikasi (noise umum)
         $stopwords = ['um', 'fbs', 'set', 'seri', 'sni'];

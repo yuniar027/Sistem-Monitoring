@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BahanBaku;
+use App\Models\PemetaanManualBahanBaku;
 
 class PemetaanBahanBakuService
 {
@@ -23,8 +24,22 @@ class PemetaanBahanBakuService
      *   'skor_atau_alasan' => string,
      * ]
      */
-    public function petakanSatu(string $namaItem): array
+     public function petakanSatu(string $namaItem): array
     {
+        $manual = PemetaanManualBahanBaku::where('nama_item', trim($namaItem))
+            ->with('bahanBaku')
+            ->first();
+
+        if ($manual) {
+            return [
+                'nama_item' => $namaItem,
+                'kode_bahan' => $manual->bahanBaku->kode_bahan,
+                'nama_bahan' => $manual->bahanBaku->nama_bahan,
+                'metode' => 'manual',
+                'skor_atau_alasan' => 'Sudah pernah ditetapkan manual sebelumnya',
+            ];
+        }
+
         $kandidat = $this->heuristik->cariKandidat($namaItem, 3);
 
         if (! empty($kandidat) && $kandidat[0]['skor'] >= self::AMBANG_YAKIN) {

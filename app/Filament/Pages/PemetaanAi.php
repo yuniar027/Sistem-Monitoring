@@ -14,6 +14,10 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\App;
+use App\Models\BahanBaku;
+use App\Models\PemetaanManualBahanBaku;
+use Filament\Actions\Action as TableAction;
+use Filament\Forms\Components\Select;
 
 class PemetaanAi extends Page implements HasForms, HasTable
 {
@@ -81,16 +85,50 @@ class PemetaanAi extends Page implements HasForms, HasTable
                     ->color(fn (string $state): string => match ($state) {
                         'heuristik' => 'success',
                         'ai' => 'info',
+                        'manual' => 'primary',
                         default => 'danger',
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         'heuristik' => 'Heuristik',
                         'ai' => 'AI',
+                        'manual' => 'Manual',
                         default => 'Tidak ditemukan',
                     }),
                 TextColumn::make('catatan')->label('Catatan')->limit(60)->wrap()->color('gray'),
                 TextColumn::make('created_at')->label('Waktu')->dateTime('d M Y H:i')->sortable(),
             ])
+
+            ->recordActions([
+                TableAction::make('tetapkanManual')
+                    ->label('Tetapkan Kode')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary')
+                    ->form([
+                        Select::make('bahan_baku_id')
+                            ->label('Pilih Bahan Baku yang Benar')
+                            ->options(fn () => BahanBaku::orderBy('kode_bahan')->get()->mapWithKeys(
+                                fn ($b) => [$b->id => $b->kode_bahan . ' — ' . $b->nama_bahan]
+                            ))
+                            ->searchable()
+                            ->required(),
+                    ])
+                    ->action(function (SaranPemetaanBahanBaku $record, array $data) {
+                        PemetaanManualBahanBaku::updateOrCreate(
+                            ['nama_item' => $record->nama_item],
+                            ['bahan_baku_id' => $data['bahan_baku_id']]
+                        );
+
+                        $bahanBaku = BahanBaku::find($data['bahan_baku_id']);
+
+                        $record->update([
+                            'kode_bahan_disarankan' => $bahanBaku->kode_bahan,
+                            'nama_bahan' => $bahanBaku->nama_bahan,
+                            'metode' => 'manual',
+                            'catatan' => 'Ditetapkan manual oleh user',
+                        ]);
+                    }),
+            ])
+
             ->defaultSort('created_at', 'desc');
     }
 }
