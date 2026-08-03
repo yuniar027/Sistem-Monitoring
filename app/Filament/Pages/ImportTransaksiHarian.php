@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\URL;
 class ImportTransaksiHarian extends Page
 {
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-document-arrow-up';
+    protected static string|\UnitEnum|null $navigationGroup = 'Otomasi & Import';
     protected static ?string $navigationLabel = 'Import Transaksi Harian';
     protected static ?string $title = 'Import Transaksi Harian';
-    protected static string | \UnitEnum | null $navigationGroup = 'Transaksi';
 
     protected string $view = 'filament.pages.import-transaksi-harian';
 

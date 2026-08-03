@@ -24,13 +24,10 @@ class PembayaranHutangResource extends Resource
     protected static ?string $model = PembayaranHutang::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
-
+    protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
     protected static ?string $navigationLabel = 'Pembayaran Hutang';
-
     protected static ?string $modelLabel = 'Pembayaran Hutang';
-
     protected static ?string $pluralModelLabel = 'Pembayaran Hutang';
-
     protected static ?string $recordTitleAttribute = 'keterangan';
 
     public static function form(Schema $schema): Schema

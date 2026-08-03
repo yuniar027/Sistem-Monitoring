@@ -19,6 +19,7 @@ class StokPaketResource extends Resource
 {
     protected static ?string $model = StokPaket::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-cube';
+    protected static string|\UnitEnum|null $navigationGroup = 'Stok & Gudang';
     protected static ?string $navigationLabel = 'Stok Paket';
     protected static ?string $modelLabel = 'Stok Paket';
     protected static ?string $pluralModelLabel = 'Stok Paket';

@@ -16,6 +16,7 @@ class JurnalUmumResource extends Resource
 {
     protected static ?string $model = JurnalUmum::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-book-open';
+    protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
     protected static ?string $navigationLabel = 'Jurnal Umum';
     protected static ?string $modelLabel = 'Jurnal Umum';
     protected static ?string $pluralModelLabel = 'Jurnal Umum';

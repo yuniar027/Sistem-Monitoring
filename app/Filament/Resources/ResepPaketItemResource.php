@@ -22,6 +22,7 @@ class ResepPaketItemResource extends Resource
 {
     protected static ?string $model = ResepPaketItem::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-list-bullet';
+    protected static string|\UnitEnum|null $navigationGroup = 'Produk & Bahan Baku';
     protected static ?string $navigationLabel = 'Resep Paket';
     protected static ?string $modelLabel = 'Resep Paket';
     protected static ?string $pluralModelLabel = 'Resep Paket';

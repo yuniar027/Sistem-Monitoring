@@ -20,6 +20,7 @@ class BahanBakuMasukResource extends Resource
 {
     protected static ?string $model = BahanBakuMasuk::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-arrow-down-tray';
+    protected static string|\UnitEnum|null $navigationGroup = 'Stok & Gudang';
     protected static ?string $navigationLabel = 'Bahan Baku Masuk';
     protected static ?string $modelLabel = 'Bahan Baku Masuk';
     protected static ?string $pluralModelLabel = 'Bahan Baku Masuk';

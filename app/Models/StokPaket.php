@@ -12,7 +12,7 @@ class StokPaket extends Model
     protected $table = 'stok_paket';
 
     protected $fillable = [
-        'sku', 'kuantitas_per_paket', 'jumlah_paket', 'tanggal_dibuat', 'status',
+        'sku', 'kuantitas_per_paket', 'jumlah_paket', 'jumlah_target', 'jumlah_reject', 'persentase_reject', 'status_reject', 'tanggal_dibuat', 'status',
     ];
 
     protected $casts = [

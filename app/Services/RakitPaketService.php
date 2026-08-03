@@ -13,16 +13,29 @@ class RakitPaketService
     public function rakitPaket(array $data): StokPaket
     {
         $sku = $data['sku'];
-        $jumlahPaket = (int) $data['jumlah_paket'];
+        $jumlahTarget = (int) $data['jumlah_target'];
+        $jumlahJadi = (int) $data['jumlah_jadi'];
         $tanggalDibuat = $data['tanggal_dibuat'] ?? now()->toDateString();
 
-        if ($jumlahPaket <= 0) {
+        if ($jumlahTarget <= 0) {
             throw ValidationException::withMessages([
-                'jumlah_paket' => 'Jumlah paket harus lebih dari 0.',
+                'jumlah_target' => 'Jumlah target harus lebih dari 0.',
             ]);
-        } 
+        }
 
-        return DB::transaction(function () use ($sku, $jumlahPaket, $tanggalDibuat) {
+        if ($jumlahJadi < 0) {
+            throw ValidationException::withMessages([
+                'jumlah_jadi' => 'Jumlah jadi tidak boleh negatif.',
+            ]);
+        }
+
+        if ($jumlahJadi > $jumlahTarget) {
+            throw ValidationException::withMessages([
+                'jumlah_jadi' => 'Jumlah jadi tidak boleh lebih besar dari jumlah target.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($sku, $jumlahTarget, $jumlahJadi, $tanggalDibuat) {
             $resepItems = ResepPaketItem::where('sku', $sku)->get();
 
             if ($resepItems->isEmpty()) {
@@ -40,7 +53,7 @@ class RakitPaketService
                     ->first();
 
                 $tersedia = $stok ? $stok->kuantitas_tersedia : 0;
-                $butuh = $item->kuantitas_per_paket * $jumlahPaket;
+                $butuh = $item->kuantitas_per_paket * $jumlahTarget;
 
                 $kebutuhan[$item->bahan_baku_id] = $butuh;
 
@@ -58,7 +71,7 @@ class RakitPaketService
 
             if (! empty($kurang)) {
                 throw ValidationException::withMessages([
-                    'jumlah_paket' => 'Stok bahan baku tidak cukup, silakan restock ke supplier: ' . implode('; ', $kurang),
+                    'jumlah_target' => 'Stok bahan baku tidak cukup, silakan restock ke supplier: ' . implode('; ', $kurang),
                 ]);
             }
 
@@ -67,10 +80,19 @@ class RakitPaketService
                     ->decrement('kuantitas_tersedia', $butuh, ['updated_at' => now()]);
             }
 
+            $jumlahReject = $jumlahTarget - $jumlahJadi;
+            $persentaseReject = $jumlahTarget > 0 ? round(($jumlahReject / $jumlahTarget) * 100, 2) : 0;
+            $batasAman = config('kualitas.batas_reject_persen');
+            $statusReject = $persentaseReject > $batasAman ? 'melebihi_batas' : 'normal';
+
             return StokPaket::create([
                 'sku' => $sku,
                 'kuantitas_per_paket' => 1,
-                'jumlah_paket' => $jumlahPaket,
+                'jumlah_paket' => $jumlahJadi,
+                'jumlah_target' => $jumlahTarget,
+                'jumlah_reject' => $jumlahReject,
+                'persentase_reject' => $persentaseReject,
+                'status_reject' => $statusReject,
                 'tanggal_dibuat' => $tanggalDibuat,
                 'status' => 'belum_distribusi',
             ]);

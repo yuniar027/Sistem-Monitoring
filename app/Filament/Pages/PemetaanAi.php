@@ -26,6 +26,7 @@ class PemetaanAi extends Page implements HasForms, HasTable
 
     protected static ?string $navigationLabel = 'AI Mapping';
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-sparkles';
+    protected static string|\UnitEnum|null $navigationGroup = 'Otomasi & Import';
     protected static ?string $title = 'AI Mapping Bahan Baku';
 
     protected string $view = 'filament.pages.pemetaan-ai';

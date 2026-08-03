@@ -21,6 +21,7 @@ class ProdukMasterResource extends Resource
 {
         protected static ?string $model = ProdukMaster::class;
         protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-rectangle-stack';
+        protected static string|\UnitEnum|null $navigationGroup = 'Produk & Bahan Baku';
         protected static ?string $navigationLabel = 'Produk Master';
         protected static ?string $modelLabel = 'Produk Master';
         protected static ?string $pluralModelLabel = 'Produk Master';

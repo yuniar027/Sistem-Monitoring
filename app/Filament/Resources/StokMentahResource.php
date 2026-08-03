@@ -14,6 +14,7 @@ class StokMentahResource extends Resource
 {
     protected static ?string $model = StokMentah::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-inbox-stack';
+    protected static string|\UnitEnum|null $navigationGroup = 'Stok & Gudang';
     protected static ?string $navigationLabel = 'Stok Mentah';
     protected static ?string $modelLabel = 'Stok Mentah';
     protected static ?string $pluralModelLabel = 'Stok Mentah';

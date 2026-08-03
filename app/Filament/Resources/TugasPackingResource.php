@@ -19,6 +19,7 @@ class TugasPackingResource extends Resource
 {
     protected static ?string $model = TugasPacking::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static string|\UnitEnum|null $navigationGroup = 'Stok & Gudang';
     protected static ?string $navigationLabel = 'Tugas Packing';
     protected static ?string $modelLabel = 'Tugas Packing';
     protected static ?string $pluralModelLabel = 'Tugas Packing';

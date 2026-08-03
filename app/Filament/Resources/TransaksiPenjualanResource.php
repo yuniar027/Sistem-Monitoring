@@ -18,6 +18,7 @@ class TransaksiPenjualanResource extends Resource
 {
     protected static ?string $model = TransaksiPenjualan::class;
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-shopping-cart';
+    protected static string|\UnitEnum|null $navigationGroup = 'Penjualan';
     protected static ?string $navigationLabel = 'Transaksi Penjualan';
     protected static ?string $modelLabel = 'Transaksi Penjualan';
     protected static ?string $pluralModelLabel = 'Transaksi Penjualan';

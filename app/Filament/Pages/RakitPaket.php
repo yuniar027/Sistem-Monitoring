@@ -20,9 +20,9 @@ class RakitPaket extends Page implements HasForms
     use InteractsWithForms;
 
     protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-wrench-screwdriver';
+    protected static string|\UnitEnum|null $navigationGroup = 'Stok & Gudang';
     protected static ?string $navigationLabel = 'Rakit Paket';
     protected static ?string $title = 'Rakit Paket';
-
     protected string $view = 'filament.pages.rakit-paket';
 
     public ?array $data = [];
@@ -40,10 +40,17 @@ class RakitPaket extends Page implements HasForms
                 ->options(fn () => ProdukMaster::where('tipe_produk', 'rakitan')->orderBy('sku')->pluck('sku', 'sku')->toArray())
                 ->searchable()
                 ->required(),
-            TextInput::make('jumlah_paket')
-                ->label('Jumlah Paket yang Dirakit')
+            TextInput::make('jumlah_target')
+                ->label('Jumlah Target Dirakit (dari bahan baku)')
+                ->helperText('Jumlah yang dicoba dirakit — bahan baku dipotong sesuai angka ini, walau hasil akhirnya kurang dari ini karena reject.')
                 ->numeric()
                 ->minValue(1)
+                ->required(),
+            TextInput::make('jumlah_jadi')
+                ->label('Jumlah yang Benar-benar Jadi')
+                ->helperText('Setelah dirakit, berapa yang lolos QC dan siap jual? Sisanya otomatis dihitung sebagai reject.')
+                ->numeric()
+                ->minValue(0)
                 ->required(),
             DatePicker::make('tanggal_dibuat')
                 ->label('Tanggal')
@@ -57,9 +64,18 @@ class RakitPaket extends Page implements HasForms
         $data = $this->form->getState();
 
         try {
-            $service->rakitPaket($data);
+            $stokPaket = $service->rakitPaket($data);
 
-            Notification::make()->title('Paket berhasil dirakit')->success()->send();
+            if ($stokPaket->status_reject === 'melebihi_batas') {
+                Notification::make()
+                    ->title('Paket berhasil dirakit — TAPI reject melebihi batas aman!')
+                    ->body("Reject {$stokPaket->jumlah_reject} dari {$stokPaket->jumlah_target} target ({$stokPaket->persentase_reject}%). Segera laporkan ke pabrik.")
+                    ->warning()
+                    ->persistent()
+                    ->send();
+            } else {
+                Notification::make()->title('Paket berhasil dirakit')->success()->send();
+            }
 
             $this->form->fill();
         } catch (ValidationException $exception) {

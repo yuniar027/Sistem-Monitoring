@@ -15,6 +15,7 @@ class LaporanLabaRugi extends Page
 
     protected static ?string $navigationLabel = 'Laporan Laba Rugi';
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-chart-bar';
+    protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
     protected static ?string $title = 'Laporan Laba Rugi';
 
     // Sengaja tidak override $view - pakai template bawaan Filament yang
