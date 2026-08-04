@@ -17,7 +17,7 @@ class JurnalPenjualanObserver
 
             JurnalUmum::create([
                 'tanggal' => $penjualan->tanggal,
-                'kode_akun' => $akun['piutang_usaha'],
+                'kode_akun' => $akun['kas'],
                 'keterangan' => 'Penjualan ' . $penjualan->channel . ': ' . $penjualan->no_pesanan,
                 'debit' => $penjualan->total,
                 'kredit' => 0,
