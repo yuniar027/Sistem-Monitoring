@@ -24,9 +24,4 @@ class TugasPacking extends Model
     {
         return $this->belongsTo(ProdukMaster::class, 'sku', 'sku');
     }
-
-    public function assignedTo()
-    {
-        return $this->belongsTo(Packer::class, 'ditugaskan_ke');
-    }
 }

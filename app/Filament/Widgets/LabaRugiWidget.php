@@ -11,6 +11,9 @@ class LabaRugiWidget extends BaseWidget
 {
     use InteractsWithPageFilters;
 
+    protected ?string $heading = 'Laporan Laba Rugi';
+    protected ?string $description = 'Ikhtisar pendapatan, HPP, biaya operasional, dan laba bersih.';
+
     protected function getStats(): array
     {
         $tanggalAwal = $this->pageFilters['tanggal_awal'] ?? null;

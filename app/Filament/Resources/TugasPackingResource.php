@@ -4,7 +4,6 @@ namespace App\Filament\Resources;
 
 use BackedEnum;
 use App\Filament\Resources\TugasPackingResource\Pages;
-use App\Models\Packer;
 use App\Models\ProdukMaster;
 use App\Models\TugasPacking;
 use Filament\Forms\Components\DatePicker;
@@ -44,11 +43,10 @@ class TugasPackingResource extends Resource
                 ->required()
                 ->minValue(1),
 
-            Select::make('ditugaskan_ke')
-                ->label('Ditugaskan Ke')
-                ->options(fn () => Packer::where('status', 'aktif')->orderBy('nama')->pluck('nama', 'id')->toArray())
-                ->searchable()
-                ->helperText('Cuma packer aktif yang muncul di sini.'),
+            TextInput::make('ditugaskan_ke')
+                ->label('Nomor Urut')
+                ->numeric()
+                ->nullable(),
 
             Select::make('status')
                 ->options([
@@ -76,7 +74,7 @@ class TugasPackingResource extends Resource
                 TextColumn::make('produk.nama_produk')->label('Nama Produk')->limit(40),
                 TextColumn::make('channel_tujuan')->badge(),
                 TextColumn::make('kuantitas'),
-                TextColumn::make('assignedTo.nama')->label('Ditugaskan Ke')->placeholder('— Belum ditugaskan —'),
+                TextColumn::make('ditugaskan_ke')->label('Nomor Urut')->placeholder('— Belum ditugaskan —'),
                 TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {

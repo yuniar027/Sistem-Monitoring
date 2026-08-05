@@ -3,31 +3,27 @@
 namespace App\Console\Commands;
 
 use App\Models\BahanBakuStok;
+use App\Models\Packer;
 use App\Models\ProdukMaster;
 use App\Models\ResepPaketItem;
 use App\Models\StokPaket;
 use App\Models\TugasPacking;
-use App\Models\UrutanKedatangan;
 use Illuminate\Console\Command;
 
 class GenerateJadwalSetting extends Command
 {
     protected $signature = 'jadwal:generate';
-    protected $description = 'Generate Tugas Packing otomatis, dibagi rata sesuai urutan kedatangan packer hari ini';
+    protected $description = 'Generate Tugas Packing otomatis, dibagi rata (bernomor urut) sesuai jumlah packer aktif';
 
     public function handle(): int
     {
-        $antrianPacker = UrutanKedatangan::where('tanggal', now()->toDateString())
-            ->orderBy('urutan')
-            ->pluck('packer_id')
-            ->toArray();
+        $jumlahPacker = Packer::where('status', 'aktif')->count();
 
-        if (empty($antrianPacker)) {
-            $this->warn('Belum ada data urutan kedatangan hari ini. Isi dulu di halaman "Urutan Kedatangan".');
+        if ($jumlahPacker === 0) {
+            $this->error('Tidak ada packer aktif.');
             return self::FAILURE;
         }
 
-        // Kumpulkan semua SKU yang butuh restock + jumlah kekurangannya
         $daftarKebutuhan = [];
 
         $produkList = ProdukMaster::where('tipe_produk', 'rakitan')
@@ -74,15 +70,13 @@ class GenerateJadwalSetting extends Command
             return self::SUCCESS;
         }
 
-        // Hapus tugas auto-generate hari ini yang lama (biar generate ulang bersih, bukan numpuk)
+        // Bersihkan tugas auto-generate hari ini yang lama (biar generate ulang nggak numpuk)
         TugasPacking::where('tanggal_dibuat', now()->toDateString())
             ->where('status', 'belum_dikerjakan')
-            ->whereNotNull('dari_urutan_kedatangan')
+            ->where('dari_urutan_kedatangan', true)
             ->delete();
 
-        // Bagi rata: tiap packer di antrian dapat porsi dari total kebutuhan
         $totalUnit = array_sum(array_column($daftarKebutuhan, 'jumlah'));
-        $jumlahPacker = count($antrianPacker);
         $jatahDasar = intdiv($totalUnit, $jumlahPacker);
         $sisa = $totalUnit % $jumlahPacker;
 
@@ -90,11 +84,11 @@ class GenerateJadwalSetting extends Command
         $sisaSkuSaatIni = $daftarKebutuhan[0]['jumlah'];
         $dibuat = 0;
 
-        foreach ($antrianPacker as $i => $packerId) {
-            $jatahPacker = $jatahDasar + ($i < $sisa ? 1 : 0);
+        for ($nomor = 1; $nomor <= $jumlahPacker; $nomor++) {
+            $jatah = $jatahDasar + ($nomor <= $sisa ? 1 : 0);
 
-            while ($jatahPacker > 0 && $indexSku < count($daftarKebutuhan)) {
-                $ambil = min($jatahPacker, $sisaSkuSaatIni);
+            while ($jatah > 0 && $indexSku < count($daftarKebutuhan)) {
+                $ambil = min($jatah, $sisaSkuSaatIni);
 
                 if ($ambil > 0) {
                     TugasPacking::create([
@@ -102,14 +96,14 @@ class GenerateJadwalSetting extends Command
                         'channel_tujuan' => 'shopee',
                         'kuantitas' => $ambil,
                         'status' => 'belum_dikerjakan',
-                        'ditugaskan_ke' => $packerId,
+                        'ditugaskan_ke' => $nomor,
                         'tanggal_dibuat' => now()->toDateString(),
                         'dari_urutan_kedatangan' => true,
                     ]);
                     $dibuat++;
                 }
 
-                $jatahPacker -= $ambil;
+                $jatah -= $ambil;
                 $sisaSkuSaatIni -= $ambil;
 
                 if ($sisaSkuSaatIni <= 0) {
@@ -119,7 +113,7 @@ class GenerateJadwalSetting extends Command
             }
         }
 
-        $this->info("Jadwal setting selesai: {$dibuat} tugas dibuat untuk {$jumlahPacker} packer yang hadir hari ini.");
+        $this->info("Jadwal setting selesai: {$dibuat} tugas dibuat, bernomor 1 sampai {$jumlahPacker}.");
 
         return self::SUCCESS;
     }

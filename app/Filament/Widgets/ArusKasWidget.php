@@ -11,6 +11,9 @@ class ArusKasWidget extends BaseWidget
 {
     use InteractsWithPageFilters;
 
+    protected ?string $heading = 'Arus Kas';
+    protected ?string $description = 'Ringkasan kas masuk dan kas keluar untuk periode terpilih.';
+
     protected function getStats(): array
     {
         $tanggalAwal = $this->pageFilters['tanggal_awal'] ?? null;

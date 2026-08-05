@@ -8,6 +8,9 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class RingkasanJurnalWidget extends BaseWidget
 {
+    protected ?string $heading = 'Ringkasan Jurnal Umum';
+    protected ?string $description = 'Cek total debit, total kredit, dan selisih untuk validasi pembukuan.';
+
     protected function getStats(): array
     {
         $totalDebit = JurnalUmum::sum('debit');
