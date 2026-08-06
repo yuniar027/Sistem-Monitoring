@@ -70,9 +70,9 @@ class GenerateJadwalSetting extends Command
             return self::SUCCESS;
         }
 
-        // Bersihkan tugas auto-generate hari ini yang lama (biar generate ulang nggak numpuk)
-        TugasPacking::where('tanggal_dibuat', now()->toDateString())
-            ->where('status', 'belum_dikerjakan')
+        // Bersihkan SEMUA tugas auto-generate yang belum dikerjakan (dari tanggal manapun),
+        // bukan cuma hari ini — supaya generate ulang selalu jadi snapshot terbaru, tidak numpuk lintas hari.
+        TugasPacking::where('status', 'belum_dikerjakan')
             ->where('dari_urutan_kedatangan', true)
             ->delete();
 

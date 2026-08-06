@@ -12,12 +12,13 @@ class TugasPacking extends Model
     protected $table = 'tugas_packing';
 
     protected $fillable = [
-        'sku', 'channel_tujuan', 'kuantitas', 'status', 'ditugaskan_ke', 'tanggal_dibuat', 'tanggal_selesai',
+        'sku', 'channel_tujuan', 'kuantitas', 'status', 'ditugaskan_ke', 'tanggal_dibuat', 'tanggal_selesai', 'dari_urutan_kedatangan',
     ];
 
     protected $casts = [
         'tanggal_dibuat' => 'date',
         'tanggal_selesai' => 'date',
+        'dari_urutan_kedatangan' => 'boolean',
     ];
 
     public function produk()
