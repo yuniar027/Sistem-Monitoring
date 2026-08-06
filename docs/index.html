@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistem Monitoring — Ummababyshop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDE6D2;
+    --paper-light:#FAF6EC;
+    --ink:#24211A;
+    --ink-soft:#635D49;
+    --line:#C9BC9C;
+    --stamp-red:#A93F2E;
+    --stamp-green:#3F6B45;
+    --stamp-amber:#AD7D24;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(36,33,26,0.06) 1px, transparent 0);
+    background-size: 22px 22px;
+    color:var(--ink);
+    font-family:'Public Sans', sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    max-width:880px;
+    margin:0 auto;
+    padding:48px 20px 80px;
+  }
+
+  .mono{ font-family:'JetBrains Mono', monospace; }
+
+  /* ===== Header: packing slip ===== */
+  .slip{
+    background:var(--paper-light);
+    border:1.5px solid var(--ink);
+    position:relative;
+    padding:28px 28px 24px;
+  }
+  .slip::before, .slip::after{
+    content:"";
+    position:absolute;
+    top:-1px; bottom:-1px;
+    width:14px;
+    background-image: radial-gradient(circle, var(--paper) 3.2px, transparent 3.6px);
+    background-size: 14px 16px;
+    background-position: center;
+  }
+  .slip::before{ left:-7px; }
+  .slip::after{ right:-7px; }
+
+  .slip-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    gap:16px;
+    border-bottom:1.5px dashed var(--line);
+    padding-bottom:18px;
+    margin-bottom:18px;
+  }
+  .slip-eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 6px;
+  }
+  .slip-title{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800;
+    font-size:clamp(28px, 5vw, 40px);
+    letter-spacing:-0.01em;
+    margin:0;
+    line-height:1.05;
+  }
+  .slip-sub{
+    margin:8px 0 0;
+    color:var(--ink-soft);
+    font-size:15px;
+  }
+  .stamp{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800;
+    font-size:13px;
+    letter-spacing:.08em;
+    color:var(--stamp-amber);
+    border:2.5px solid var(--stamp-amber);
+    border-radius:6px;
+    padding:8px 14px;
+    transform:rotate(-6deg);
+    white-space:nowrap;
+    opacity:.85;
+    mix-blend-mode:multiply;
+  }
+
+  .fields{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:14px;
+  }
+  .field-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size:10px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 3px;
+  }
+  .field-value{
+    font-size:14px;
+    font-weight:600;
+    margin:0;
+  }
+  @media (max-width:560px){ .fields{ grid-template-columns:1fr 1fr; } }
+
+  /* ===== Sections ===== */
+  section{ margin-top:44px; }
+  .sec-head{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .sec-num{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    font-size:13px;
+    color:var(--stamp-red);
+  }
+  .sec-title{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    font-size:20px;
+    margin:0;
+  }
+  .sec-rule{
+    flex:1;
+    border-bottom:1.5px dashed var(--line);
+    transform:translateY(-4px);
+  }
+  p{ margin:0 0 12px; color:var(--ink); }
+  p.lede{ font-size:15.5px; color:var(--ink-soft); }
+
+  /* ===== Supply list (tech stack) ===== */
+  .supply{
+    background:var(--paper-light);
+    border:1px solid var(--line);
+  }
+  .supply-row{
+    display:grid;
+    grid-template-columns:170px 1fr;
+    gap:12px;
+    padding:12px 16px;
+    border-bottom:1px dashed var(--line);
+    font-size:14px;
+  }
+  .supply-row:last-child{ border-bottom:none; }
+  .supply-row .k{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    font-size:12.5px;
+    color:var(--stamp-red);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  @media (max-width:560px){ .supply-row{ grid-template-columns:1fr; } }
+
+  /* ===== Concept cards ===== */
+  .concept-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  @media (max-width:640px){ .concept-grid{ grid-template-columns:1fr; } }
+  .concept-card{
+    background:var(--paper-light);
+    border:1px solid var(--ink);
+    padding:18px 18px 16px;
+  }
+  .concept-tag{
+    display:inline-block;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:3px 8px;
+    border:1.5px solid var(--ink);
+    margin-bottom:10px;
+  }
+  .concept-card h4{ margin:0 0 6px; font-size:16px; }
+  .concept-card p{ font-size:14px; color:var(--ink-soft); margin:0; }
+
+  /* ===== Manifest flow ===== */
+  .flow{
+    background:var(--paper-light);
+    border:1px solid var(--line);
+    padding:6px 0;
+  }
+  .flow-item{
+    display:grid;
+    grid-template-columns:44px 1fr;
+    gap:14px;
+    padding:14px 18px;
+    border-bottom:1px dashed var(--line);
+    align-items:start;
+  }
+  .flow-item:last-child{ border-bottom:none; }
+  .flow-num{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800;
+    font-size:16px;
+    color:var(--stamp-red);
+  }
+  .flow-title{ font-weight:700; font-size:14.5px; margin:0 0 2px; }
+  .flow-desc{ font-size:13.5px; color:var(--ink-soft); margin:0; }
+  .flow-arrow{
+    font-family:'JetBrains Mono', monospace;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    padding:2px 0 0;
+  }
+
+  /* ===== Feature grid ===== */
+  .feat-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  @media (max-width:640px){ .feat-grid{ grid-template-columns:1fr; } }
+  .feat{
+    border:1px solid var(--line);
+    background:var(--paper-light);
+    padding:14px 16px;
+  }
+  .feat h4{
+    margin:0 0 4px;
+    font-size:14.5px;
+    font-family:'JetBrains Mono', monospace;
+  }
+  .feat p{ margin:0; font-size:13.5px; color:var(--ink-soft); }
+
+  /* ===== Manifest table (status) ===== */
+  .manifest{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--paper-light);
+    border:1px solid var(--ink);
+    font-size:14px;
+  }
+  .manifest th{
+    font-family:'JetBrains Mono', monospace;
+    text-align:left;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    padding:10px 14px;
+    border-bottom:1.5px solid var(--ink);
+    color:var(--ink-soft);
+  }
+  .manifest td{
+    padding:11px 14px;
+    border-bottom:1px dashed var(--line);
+    vertical-align:middle;
+  }
+  .manifest tr:last-child td{ border-bottom:none; }
+  .badge{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800;
+    font-size:11px;
+    letter-spacing:.05em;
+    padding:4px 9px;
+    border-radius:4px;
+    border:2px solid;
+    display:inline-block;
+    white-space:nowrap;
+    mix-blend-mode:multiply;
+  }
+  .badge.done{ color:var(--stamp-green); border-color:var(--stamp-green); }
+  .badge.partial{ color:var(--stamp-amber); border-color:var(--stamp-amber); }
+  .badge.progress{ color:var(--stamp-red); border-color:var(--stamp-red); }
+
+  /* ===== Footer note ===== */
+  .tear{
+    margin-top:56px;
+    padding-top:20px;
+    border-top:1.5px dashed var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .tear p{ margin:0; font-size:13px; color:var(--ink-soft); max-width:560px; }
+  .tear .mono{ font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft); }
+
+  ul.plain{ margin:0; padding-left:18px; }
+  ul.plain li{ margin-bottom:6px; font-size:14px; color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="slip">
+    <div class="slip-top">
+      <div>
+        <p class="slip-eyebrow">Manifest Proyek · Internal</p>
+        <h1 class="slip-title">SISTEM<br>MONITORING</h1>
+        <p class="slip-sub">Inventory &amp; keuangan otomatis untuk Ummababyshop</p>
+      </div>
+      <div class="stamp">MINGGU 8 / 8</div>
+    </div>
+    <div class="fields">
+      <div>
+        <p class="field-label">Untuk</p>
+        <p class="field-value">Ummababyshop</p>
+      </div>
+      <div>
+        <p class="field-label">Platform</p>
+        <p class="field-value">Shopee · TikTok Shop</p>
+      </div>
+      <div>
+        <p class="field-label">Status</p>
+        <p class="field-value">Demo &amp; review</p>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">§01</span><h2 class="sec-title">Tentang</h2><div class="sec-rule"></div></div>
+    <p class="lede">Sistem ini menggantikan pencatatan manual stok, produksi, dan keuangan Ummababyshop dengan alur yang otomatis dan saling terhubung — dari bahan baku masuk dari pabrik, proses rakit paket, alokasi ke etalase, sampai laporan keuangan yang ter-generate otomatis dari jurnal transaksi dan bisa saling diverifikasi.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">§02</span><h2 class="sec-title">Tech stack</h2><div class="sec-rule"></div></div>
+    <div class="supply">
+      <div class="supply-row"><span class="k">Backend / Admin</span><span>Laravel 13 + Filament v5.6</span></div>
+      <div class="supply-row"><span class="k">Database</span><span>PostgreSQL (via Supabase)</span></div>
+      <div class="supply-row"><span class="k">Otomasi</span><span>n8n — import file harian, notifikasi Telegram</span></div>
+      <div class="supply-row"><span class="k">Storefront terkait</span><span>ummababyshop.com (Biteship + Xendit)</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">§03</span><h2 class="sec-title">Dua jenis produk</h2><div class="sec-rule"></div></div>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <span class="concept-tag">Simple</span>
+        <h4>Langsung jual</h4>
+        <p>Dibeli dalam lusin dari pabrik, dijual langsung tanpa proses rakitan. Contoh: selimut.</p>
+      </div>
+      <div class="concept-card">
+        <span class="concept-tag">Rakitan</span>
+        <h4>Dirakit dari BOM</h4>
+        <p>Digabung dari beberapa bahan baku sesuai resep (Bill of Materials) sebelum siap dijual.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">§04</span><h2 class="sec-title">Alur data</h2><div class="sec-rule"></div></div>
+    <div class="flow">
+      <div class="flow-item"><span class="flow-num">01</span><div><p class="flow-title">Bahan Baku Masuk</p><p class="flow-desc">Invoice pabrik dicatat — selalu tempo/kredit, jurnal otomatis ke Hutang Usaha.</p></div></div>
+      <div class="flow-item"><span class="flow-num">02</span><div><p class="flow-title">Bahan Baku Stok</p><p class="flow-desc">Stok bahan baku bertambah otomatis.</p></div></div>
+      <div class="flow-item"><span class="flow-num">03</span><div><p class="flow-title">Rakit Paket</p><p class="flow-desc">Proses assembly dengan tracking reject/QC (target vs hasil jadi).</p></div></div>
+      <div class="flow-item"><span class="flow-num">04</span><div><p class="flow-title">Stok Paket</p><p class="flow-desc">Paket jadi siap dialokasikan.</p></div></div>
+      <div class="flow-item"><span class="flow-num">05</span><div><p class="flow-title">Alokasi Etalase</p><p class="flow-desc">Dibagi ke etalase Shopee / TikTok Shop.</p></div></div>
+      <div class="flow-item"><span class="flow-num">06</span><div><p class="flow-title">Transaksi Penjualan</p><p class="flow-desc">Penjualan tercatat, otomatis menambah saldo Kas.</p></div></div>
+      <div class="flow-item"><span class="flow-num">07</span><div><p class="flow-title">Laporan Keuangan</p><p class="flow-desc">Laba Rugi, Neraca, Arus Kas — seluruhnya tersinkron dan saling cocok (reconciled).</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">§05</span><h2 class="sec-title">Fitur utama</h2><div class="sec-rule"></div></div>
+    <div class="feat-grid">
+      <div class="feat"><h4>Bahan Baku Masuk</h4><p>Import invoice CSV &amp; Excel dengan pencocokan nama item otomatis + mapping manual yang diingat sistem.</p></div>
+      <div class="feat"><h4>Rakit Paket</h4><p>Tracking reject/QC, toleransi 5%, laporan otomatis saat melebihi batas.</p></div>
+      <div class="feat"><h4>Jadwal Setting</h4><p>Jadwal packing harian otomatis dari kekurangan stok, dibagi rata ke packer aktif — bisa di-generate ulang manual kapan saja.</p></div>
+      <div class="feat"><h4>Import Transaksi Harian</h4><p>Upload file penjualan harian, diproses otomatis lewat n8n.</p></div>
+      <div class="feat"><h4>Notifikasi Telegram</h4><p>Peringatan otomatis saat stok di bawah batas aman per item.</p></div>
+      <div class="feat"><h4>Laporan Keuangan</h4><p>Laba Rugi, Neraca (indikator balance otomatis), Arus Kas — semua dari Jurnal Umum.</p></div>
+      <div class="feat"><h4>Pembayaran Hutang</h4><p>Pelunasan hutang ke pabrik per transaksi, bisa dibatalkan.</p></div>
+      <div class="feat"><h4>Kontrol Akses</h4><p>Umma &amp; admin gudang punya akses berbeda — admin gudang tidak bisa buka menu Keuangan.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">§06</span><h2 class="sec-title">Status pengembangan</h2><div class="sec-rule"></div></div>
+    <table class="manifest">
+      <thead><tr><th>Minggu</th><th>Fokus</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">01</td><td>Biaya Operasional otomatis</td><td><span class="badge done">SELESAI</span></td></tr>
+        <tr><td class="mono">02</td><td>Kategori &amp; harga modal SKU prioritas</td><td><span class="badge done">SELESAI</span></td></tr>
+        <tr><td class="mono">03</td><td>Notifikasi Telegram stok rendah</td><td><span class="badge partial">SEBAGIAN</span></td></tr>
+        <tr><td class="mono">04–05</td><td>Neraca</td><td><span class="badge done">SELESAI</span></td></tr>
+        <tr><td class="mono">06</td><td>Arus Kas</td><td><span class="badge done">SELESAI</span></td></tr>
+        <tr><td class="mono">07</td><td>Reconciliation antar laporan</td><td><span class="badge done">SELESAI</span></td></tr>
+        <tr><td class="mono">08</td><td>Buffer &amp; demo review</td><td><span class="badge progress">BERJALAN</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">§07</span><h2 class="sec-title">Di luar fase 1</h2><div class="sec-rule"></div></div>
+    <ul class="plain">
+      <li>Auto-sync API Shopee / TikTok Shop</li>
+      <li>Import data via gambar (OCR)</li>
+      <li>Alokasi etalase berbasis demand</li>
+      <li>Penyempurnaan alur produk "simple" yang juga dipakai sebagai bahan rakitan</li>
+    </ul>
+  </section>
+
+  <div class="tear">
+    <p>Proyek masih dalam pengembangan aktif. Struktur data dan alur bisa berubah mengikuti kebutuhan operasional Ummababyshop.</p>
+    <span class="mono">SM · 2026</span>
+  </div>
+
+</div>
+</body>
+</html>
