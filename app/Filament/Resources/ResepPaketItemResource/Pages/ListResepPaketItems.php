@@ -44,10 +44,25 @@ class ListResepPaketItems extends ListRecords
                     $pemetaan = app(PemetaanBahanBakuService::class);
 
                     $path = Storage::disk('local')->path($data['file']);
-                    $spreadsheet = IOFactory::load($path);
+
+                    try {
+                        $spreadsheet = IOFactory::load($path);
+                    } catch (\Throwable $e) {
+                        Storage::disk('local')->delete($data['file']);
+
+                        Notification::make()
+                            ->title('File tidak bisa dibaca')
+                            ->body('Pastikan file benar-benar format .xlsx (bukan .xls/.csv yang cuma di-rename), dan tidak corrupt.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
                     $rows = $spreadsheet->getActiveSheet()->toArray();
 
                     if (empty($rows)) {
+                        Storage::disk('local')->delete($data['file']);
                         Notification::make()->title('File kosong')->danger()->send();
                         return;
                     }
@@ -59,6 +74,8 @@ class ListResepPaketItems extends ListRecords
                     $idxKuantitas = array_search('kuantitas per paket', $header, true);
 
                     if ($idxSku === false || $idxNamaBahan === false || $idxKuantitas === false) {
+                        Storage::disk('local')->delete($data['file']);
+
                         Notification::make()
                             ->title('Format kolom tidak sesuai')
                             ->body('Pastikan header kolom persis: SKU, Nama Bahan Baku, Kuantitas per Paket')
@@ -107,6 +124,8 @@ class ListResepPaketItems extends ListRecords
 
                         $berhasil++;
                     }
+
+                    Storage::disk('local')->delete($data['file']);
 
                     $body = "{$berhasil} baris resep berhasil disimpan.";
 

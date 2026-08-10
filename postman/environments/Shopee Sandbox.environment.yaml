@@ -1,0 +1,11 @@
+name: Shopee Sandbox
+values:
+  - key: partner_id
+    value: ''
+  - key: partner_key
+    value: ''
+  - key: access_token
+    value: ''
+  - key: shop_id
+    value: ''
+color: 60
