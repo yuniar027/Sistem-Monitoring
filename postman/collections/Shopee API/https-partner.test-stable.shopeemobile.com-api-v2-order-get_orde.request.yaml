@@ -1,0 +1,101 @@
+$kind: http-request
+name: https://partner.test-stable.shopeemobile.com/api/v2/order/get_order_list
+description: ""
+url: https://partner.test-stable.shopeemobile.com/api/v2/order/get_order_list?partner_id={{partner_id}}&timestamp={{timestamp}}&sign={{sign}}&acces_token={{access_token}}&shop_id={{shop_id}}&time_range_field=create_time&time_from=1735689600&time_to=1738368000
+method: GET
+queryParams:
+  - key: partner_id
+    value: "{{partner_id}}"
+    disabled: false
+    description: ""
+  - key: timestamp
+    value: "{{timestamp}}"
+    disabled: false
+    description: ""
+  - key: sign
+    value: "{{sign}}"
+    disabled: false
+    description: ""
+  - key: acces_token
+    value: "{{access_token}}"
+    disabled: false
+    description: ""
+  - key: shop_id
+    value: "{{shop_id}}"
+    disabled: false
+    description: ""
+  - key: time_range_field
+    value: create_time
+    disabled: false
+    description: ""
+  - key: time_from
+    value: "1735689600"
+    disabled: false
+    description: ""
+  - key: time_to
+    value: "1738368000"
+    disabled: false
+    description: ""
+scripts:
+  - type: beforeRequest
+    code: "// 1) Isi 4 variabel ini dulu di tab \"Variables\" Environment Postman:\r
+
+      //    partner_id   -> Partner ID dari open.shopee.com (App Management)\r
+
+      //    partner_key  -> Partner Key dari open.shopee.com (JANGAN di-share/commit ke git)\r
+
+      //    access_token -> didapat setelah proses otorisasi toko (langkah 3 sebelumnya)\r
+
+      //    shop_id      -> didapat bareng access_token setelah otorisasi\r
+
+      \r
+
+      const partnerId = pm.environment.get(\"partner_id\");\r
+
+      const partnerKey = pm.environment.get(\"partner_key\");\r
+
+      const accessToken = pm.environment.get(\"access_token\");\r
+
+      const shopId = pm.environment.get(\"shop_id\");\r
+
+      \r
+
+      // 2) Path endpoint HARUS PERSIS sama dengan yang ada di URL request\r
+
+      const path = \"/api/v2/order/get_order_list\";\r
+
+      \r
+
+      const timestamp = Math.floor(Date.now() / 1000);\r
+
+      \r
+
+      // 3) Base string beda untuk request yang butuh akses toko (pakai access_token+shop_id)\r
+
+      const baseString = partnerId + path + timestamp + accessToken + shopId;\r
+
+      \r
+
+      // 4) Hitung HMAC-SHA256 pakai partner_key sebagai secret, hasil dalam hex\r
+
+      const sign = CryptoJS.HmacSHA256(baseString, partnerKey).toString(CryptoJS.enc.Hex);\r
+
+      \r
+
+      // 5) Simpan hasilnya jadi variabel Postman, supaya bisa dipakai di URL\r
+
+      //    sebagai {{timestamp}} dan {{sign}}\r
+
+      pm.variables.set(\"timestamp\", timestamp);\r
+
+      pm.variables.set(\"sign\", sign);\r
+
+      \r
+
+      console.log(\"Base string:\", baseString);\r
+
+      console.log(\"Timestamp:\", timestamp);\r
+
+      console.log(\"Sign:\", sign);"
+    language: text/javascript
+order: 1786343718938
