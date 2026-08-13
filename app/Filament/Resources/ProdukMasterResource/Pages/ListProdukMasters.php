@@ -5,7 +5,7 @@ namespace App\Filament\Resources\ProdukMasterResource\Pages;
 use App\Filament\Imports\ProdukMasterImporter;
 use App\Filament\Resources\ProdukMasterResource;
 use App\Models\ProdukMaster;
-use App\Services\HeuristikProdukMasterService;
+use App\Services\PemetaanKodeProdukService;
 use App\Services\HppService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -72,10 +72,10 @@ class ListProdukMasters extends ListRecords
                     ->color('info')
                     ->modalDescription(
                         'Untuk file dari admin gudang yang formatnya beda: kolom NAMA (nama tulisan tangan) + VARIASI + STOK AMAN, ' .
-                        'BUKAN kolom sku. Sistem akan mencocokkan nama produk secara otomatis (fuzzy matching) dan menghasilkan FILE EXCEL BARU ' .
-                        'untuk di-download — TIDAK langsung mengubah data. Kolom "sku" di file hasil sudah otomatis terisi untuk yang cocokan ' .
-                        'skornya tinggi; yang meragukan dibiarkan kosong dengan 3 saran SKU di kolom sebelahnya untuk dipilih manual. ' .
-                        'Setelah direview/diperbaiki, upload file hasil ini ke "Import Batas Stok Minimum (Excel)" untuk benar-benar menerapkannya.'
+                        'BUKAN kolom sku. Sistem mencocokkan lewat kode tipe & warna produk (bukan tebak-tebak kemiripan nama) dan ' .
+                        'menghasilkan FILE EXCEL BARU untuk di-download — TIDAK langsung mengubah data. Kolom "sku" otomatis terisi ' .
+                        'kalau ketemu tepat 1 kecocokan; kalau ambigu/tidak dikenali/tidak ditemukan, dilaporkan di kolom "status" ' .
+                        'untuk dicek manual. Setelah direview, upload file hasil ini ke "Import Batas Stok Minimum (Excel)" untuk menerapkannya.'
                     )
                     ->form([
                         FileUpload::make('file')
@@ -195,9 +195,6 @@ class ListProdukMasters extends ListRecords
             ->send();
     }
 
-    private const AMBANG_YAKIN_PRODUK = 0.5; // di bawah ini, kandidat tidak dianggap layak jadi saran sama sekali
-    private const AMBANG_OTOMATIS_ISI = 0.8; // di atas ini, kolom sku otomatis diisi (masih boleh dikoreksi manual)
-
     private function buatDraftPencocokanStokAman(string $filePath)
     {
         $fullPath = Storage::disk('local')->path($filePath);
@@ -216,8 +213,7 @@ class ListProdukMasters extends ListRecords
             return null;
         }
 
-        $heuristik = App::make(HeuristikProdukMasterService::class);
-        $katalog = $heuristik->muatKatalog(); // dimuat SEKALI, dipakai untuk semua baris & semua sheet
+        $pemeta = App::make(PemetaanKodeProdukService::class);
 
         $hasilBaris = [];
         $belumAdaData = 0; // STOK AMAN kosong di Excel — bukan error, cuma belum diisi, tidak ikut masuk draft
@@ -231,7 +227,6 @@ class ListProdukMasters extends ListRecords
             }
 
             // Cari baris header yang SEBENARNYA — tidak selalu baris 1 (kadang ada baris kosong/judul di atasnya).
-            // Cek 5 baris pertama, cari yang mengandung "NAMA" di salah satu selnya.
             $indexHeader = null;
             $header = [];
 
@@ -248,7 +243,6 @@ class ListProdukMasters extends ListRecords
                 continue; // tidak ketemu baris header sama sekali di 5 baris pertama — lewati sheet ini
             }
 
-            // Ambil semua baris SETELAH baris header (bukan array_shift, karena header belum tentu di baris 1)
             $rows = array_slice($semuaBaris, $indexHeader + 1, null, true);
 
             $kolomNama = array_search('NAMA', $header, true);
@@ -281,26 +275,41 @@ class ListProdukMasters extends ListRecords
                     continue;
                 }
 
-                $namaPencarian = trim($nama . ' ' . $variasi);
-                $kandidat = $heuristik->cariKandidat($namaPencarian, $katalog, 3);
+                $kodeTipe = $pemeta->deteksiTipe($nama, $variasi);
+                $kodeWarna = $pemeta->deteksiWarna($nama, $namaSheet);
 
-                $skuOtomatis = (! empty($kandidat) && $kandidat[0]['skor'] >= self::AMBANG_OTOMATIS_ISI)
-                    ? $kandidat[0]['sku']
-                    : '';
+                $sku = '';
+                $status = '';
 
-                $formatSaran = fn (?array $k) => $k
-                    ? "{$k['sku']} | {$k['nama_produk']} (skor " . round($k['skor'], 2) . ')'
-                    : '';
+                if ($kodeTipe === null && $kodeWarna === null) {
+                    $status = 'TIPE & WARNA tidak dikenali — cek manual';
+                } elseif ($kodeTipe === null) {
+                    $status = "Warna terdeteksi ({$kodeWarna}), TIPE tidak dikenali — cek manual";
+                } elseif ($kodeWarna === null) {
+                    $status = "Tipe terdeteksi ({$kodeTipe}), WARNA tidak dikenali/belum tervalidasi — cek manual";
+                } else {
+                    $ditemukan = $pemeta->cariSkuByKode($kodeTipe, $kodeWarna);
+
+                    if (count($ditemukan) === 1) {
+                        $sku = $ditemukan[0]['sku'];
+                        $status = 'Otomatis — 1 kecocokan persis';
+                    } elseif (count($ditemukan) > 1) {
+                        $daftarSku = implode(', ', array_column($ditemukan, 'sku'));
+                        $status = 'Ambigu, ' . count($ditemukan) . " kecocokan ({$daftarSku}) — pilih manual";
+                    } else {
+                        $status = "Tipe={$kodeTipe} Warna={$kodeWarna}, TIDAK ADA SKU cocok — kemungkinan produk belum terdaftar";
+                    }
+                }
 
                 $hasilBaris[] = [
-                    'sku' => $skuOtomatis,
+                    'sku' => $sku,
                     'target_stok_minimum' => $stokBersih,
                     'sheet_asal' => $namaSheet,
                     'nama_gudang' => $nama,
                     'variasi_gudang' => $variasi,
-                    'saran_1' => $formatSaran($kandidat[0] ?? null),
-                    'saran_2' => $formatSaran($kandidat[1] ?? null),
-                    'saran_3' => $formatSaran($kandidat[2] ?? null),
+                    'tipe_terdeteksi' => $kodeTipe ?? '',
+                    'warna_terdeteksi' => $kodeWarna ?? '',
+                    'status' => $status,
                 ];
             }
         }
@@ -314,7 +323,7 @@ class ListProdukMasters extends ListRecords
         $sheetHasil = $spreadsheetHasil->getActiveSheet();
         $sheetHasil->setTitle('Draft Pencocokan');
 
-        $kolomHeader = ['sku', 'target_stok_minimum', 'sheet_asal', 'nama_gudang', 'variasi_gudang', 'saran_1', 'saran_2', 'saran_3'];
+        $kolomHeader = ['sku', 'target_stok_minimum', 'sheet_asal', 'nama_gudang', 'variasi_gudang', 'tipe_terdeteksi', 'warna_terdeteksi', 'status'];
         $sheetHasil->fromArray($kolomHeader, null, 'A1');
 
         $baris = 2;
@@ -330,15 +339,18 @@ class ListProdukMasters extends ListRecords
         $namaFileOutput = 'draft-pencocokan-stok-aman-' . now()->format('Y-m-d-His') . '.xlsx';
         $pathOutput = storage_path('app/temp-imports/' . $namaFileOutput);
 
+        Storage::disk('local')->makeDirectory('temp-imports');
+
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheetHasil);
         $writer->save($pathOutput);
 
-        $tanpaSaran = count(array_filter($hasilBaris, fn ($r) => $r['sku'] === ''));
+        $otomatis = count(array_filter($hasilBaris, fn ($r) => $r['sku'] !== ''));
+        $perluCek = count($hasilBaris) - $otomatis;
 
         Notification::make()
             ->title('Draft pencocokan siap diunduh')
             ->body(
-                count($hasilBaris) . " baris diproses ({$tanpaSaran} perlu dipilih manual dari kolom saran). " .
+                count($hasilBaris) . " baris diproses: {$otomatis} otomatis kecocokan persis, {$perluCek} perlu dicek manual (lihat kolom status). " .
                 ($belumAdaData > 0 ? "{$belumAdaData} baris dilewati karena STOK AMAN masih kosong di file asli." : '')
             )
             ->info()
