@@ -90,6 +90,9 @@ class PemetaanKodeProdukService
         'PINK' => 'OPK',
         'SAGE' => 'OSG',
         'COKLAT' => 'OCK',
+        //'RANDOM GIRL' => 'ORG', 
+        //'RANDOM NETRAL' => 'ORN', 
+        
     ];
 
     private const KAMUS_WARNA_AWAN = [
