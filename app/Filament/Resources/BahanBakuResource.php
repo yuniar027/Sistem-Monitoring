@@ -29,6 +29,7 @@ class BahanBakuResource extends Resource
             TextInput::make('nama_bahan')->required(),
             TextInput::make('satuan_beli')->required(),
             TextInput::make('isi_per_satuan_beli')->required()->numeric()->minValue(1),
+            TextInput::make('target_stok_minimum')->numeric()->minValue(0)->default(0),
         ]);
     }
 
@@ -40,6 +41,7 @@ class BahanBakuResource extends Resource
                 TextColumn::make('nama_bahan')->sortable()->searchable(),
                 TextColumn::make('satuan_beli'),
                 TextColumn::make('isi_per_satuan_beli'),
+                TextColumn::make('target_stok_minimum')->label('Stok Minimum')->sortable(),
             ]);
     }
 
