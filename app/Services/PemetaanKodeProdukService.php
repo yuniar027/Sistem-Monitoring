@@ -7,76 +7,85 @@ use App\Models\ProdukMaster;
 class PemetaanKodeProdukService
 {
     /**
-     * Kamus kata kunci di nama gudang -> kode tipe SKU.
-     * Urutan penting: yang lebih spesifik/panjang dicek duluan, biar tidak salah
-     * ketangkap sama kata kunci yang lebih pendek/generik (misal "TOPI SARUNG TANGAN"
-     * harus dicek sebelum "TOPI" polos).
+     * Aturan deteksi tipe — daftar TERURUT (yang lebih spesifik/kata-lebih-banyak duluan).
+     * Tiap aturan cocok kalau SEMUA grup kata di 'wajib' punya minimal 1 kata yang muncul
+     * di teks (tidak harus nempel/berurutan — beda dari versi sebelumnya yang cari frasa persis).
      */
-    private const KAMUS_TIPE = [
-        // -- Setelan 3-set (paling sering muncul di data Origami/Awan) --
-        'SET BUNTUNG' => 'STBT', 'SET BT' => 'STBT', 'BUNTUNG' => 'STBT',
-        'SET PENDEK' => 'STPD', 'SET PD' => 'STPD',
-        'SET PANJANG' => 'STPJ', 'SET PJ' => 'STPJ', 'SET PJG' => 'STPJ',
+    private const ATURAN_TIPE = [
+        // -- Topi & aksesoris, urutan dari paling spesifik --
+        ['kode' => 'TRST', 'wajib' => [['TOPI'], ['RAJUT'], ['SARTAKI']]],
+        ['kode' => 'TPS', 'wajib' => [['TOPI'], ['SARUNG']]],
+        ['kode' => 'TR', 'wajib' => [['TOPI'], ['RAJUT']]],
+        ['kode' => 'TPB', 'wajib' => [['TOPI'], ['BULAT']]],
+        ['kode' => 'BONNET', 'wajib' => [['BONNET', 'BONET']]],
+        ['kode' => 'STK', 'wajib' => [['SARUNG'], ['TANGAN']]],
+        ['kode' => 'TP', 'wajib' => [['TOPI']]], // fallback topi generik, taruh terakhir grup topi
 
-        // -- Aksesoris kecil --
-        'TOPI SARUNG TANGAN SARUNG KAKI' => 'TPS',
-        'TOPI SARUNG TANGAN' => 'TPS',
-        'TOPI RAJUT SARTAKI' => 'TRST',
-        'TOPI RAJUT' => 'TR',
-        'TOPI BULAT' => 'TPB',
-        'TOPI BONNET' => 'BONNET', 'BONNET' => 'BONNET', 'BONET' => 'BONNET',
-        'SARUNG TANGAN SARUNG KAKI' => 'STK', 'STK' => 'STK',
-        'TOPI' => 'TP', // fallback generik, taruh paling akhir grup topi
-
-        'POPOK' => 'PP',
+        ['kode' => 'PP', 'wajib' => [['POPOK']]],
 
         // -- Bedong --
-        'BEDONG INSTAN' => 'BDIN',
-        'BEDONG GULUNG' => 'BD', 'BEDONG' => 'BD',
+        ['kode' => 'BDIN', 'wajib' => [['BEDONG'], ['INSTAN', 'INSTANT']]],
+        ['kode' => 'BD', 'wajib' => [['BEDONG']]],
+
+        // -- Setelan 3-set: cukup kata "SET" + arah, TIDAK HARUS nempel
+        // (nama gudang sering "SET ORIGAMI COKLAT BT" — SET dan BT terpisah jauh)
+        ['kode' => 'STBT', 'wajib' => [['SET'], ['BT', 'BTG', 'BUNTUNG']]],
+        ['kode' => 'STPD', 'wajib' => [['SET'], ['PD', 'PDK', 'PENDEK']]],
+        ['kode' => 'STPJ', 'wajib' => [['SET'], ['PJ', 'PJG', 'PANJANG']]],
 
         // -- Jumper --
-        'JUMPER SEGITIGA PREMIUM' => 'JSR', 'SET BANDANA' => 'JSR',
-        'JUMPER SEGITIGA' => 'JS',
-        'JUMPER RAJUT' => 'JRK',
+        ['kode' => 'JSR', 'wajib' => [['SET'], ['BANDANA']]],
+        ['kode' => 'JS', 'wajib' => [['JUMPER'], ['SEGITIGA']]],
+        ['kode' => 'JRK', 'wajib' => [['JUMPER'], ['RAJUT']]],
 
         // -- Romper --
-        'ROMPER KERAH TUMPUK' => 'RPKT',
-        'ROMPER SEGIEMPAT' => 'RPR',
-        'ROMPER KIMONO' => 'RK',
-        'ROMPER' => 'RR',
+        ['kode' => 'RPKT', 'wajib' => [['ROMPER'], ['KERAH'], ['TUMPUK']]],
+        ['kode' => 'RPR', 'wajib' => [['ROMPER'], ['SEGIEMPAT']]],
+        ['kode' => 'RK', 'wajib' => [['ROMPER'], ['KIMONO']]],
+        ['kode' => 'RR', 'wajib' => [['ROMPER']]],
 
         // -- Sleepsuit --
-        'SLEEPSUIT KIMONO' => 'SSKM',
-        'SLEEPSUIT BUKA KAKI' => 'SSBK',
-        'SLEEPSUIT TUTUP KAKI' => 'SSTK',
-        'SLEEPSUIT RAMPEL TURBAN' => 'SSRT',
-        'PAKET SLEEPSUIT' => 'PSS',
+        ['kode' => 'SSKM', 'wajib' => [['SLEEPSUIT'], ['KIMONO']]],
+        ['kode' => 'SSBK', 'wajib' => [['SLEEPSUIT'], ['BUKA'], ['KAKI']]],
+        ['kode' => 'SSTK', 'wajib' => [['SLEEPSUIT'], ['TUTUP'], ['KAKI']]],
+        ['kode' => 'SSRT', 'wajib' => [['SLEEPSUIT'], ['RAMPEL', 'TURBAN']]],
+        ['kode' => 'PSS', 'wajib' => [['PAKET'], ['SLEEPSUIT']]],
 
         // -- Kimono --
-        'KIMONO PANJANG' => 'KMPJ',
-        'KIMONO PENDEK' => 'KMPD',
-        'KIMONO' => 'KM',
+        ['kode' => 'KMPJ', 'wajib' => [['KIMONO'], ['PANJANG', 'PJ']]],
+        ['kode' => 'KMPD', 'wajib' => [['KIMONO'], ['PENDEK', 'PD']]],
+        ['kode' => 'KM', 'wajib' => [['KIMONO']]],
 
         // -- Celana --
-        'CELANA PANJANG' => 'CLPJ',
-        'CELANA PENDEK' => 'CLPD',
-        'CELANA DALAM WANITA' => 'CDW',
+        ['kode' => 'CLPJ', 'wajib' => [['CELANA'], ['PANJANG']]],
+        ['kode' => 'CLPD', 'wajib' => [['CELANA'], ['PENDEK']]],
+        ['kode' => 'CDW', 'wajib' => [['CELANA'], ['DALAM'], ['WANITA']]],
+
+        // -- Baby Hai --
+        ['kode' => 'BHPJ', 'wajib' => [['BABY'], ['HAI'], ['PANJANG']]],
+        ['kode' => 'BHPD', 'wajib' => [['BABY'], ['HAI'], ['PENDEK']]],
+
+        // -- Kancing samping --
+        ['kode' => 'KSPJ', 'wajib' => [['KANCING'], ['SAMPING'], ['PANJANG']]],
+        ['kode' => 'KSPD', 'wajib' => [['KANCING'], ['SAMPING'], ['PENDEK']]],
+        ['kode' => 'KSBT', 'wajib' => [['KANCING'], ['SAMPING'], ['BUNTUNG', 'BT']]],
 
         // -- Lain-lain --
-        'DRESS' => 'DRS',
-        'GAMIS' => 'GMS',
-        'JUBAH MILO' => 'JBM',
-        'JUBAH BEIGE' => 'JMG',
-        'SELIMUT BAYI' => 'SB',
-        'ON THE GO' => 'OTGS',
-        'JAKET BULU' => 'JKB', 'JAKET' => 'JKB',
-        'BABY CAPE' => 'BC',
-        'BRA' => 'BRA', 'BH' => 'BRA',
-        'TAS BAYI' => 'TS', 'TAS' => 'TS',
-        'MSHAPE' => 'MS', 'M SHAPE' => 'MS', 'GENDONGAN' => 'MS',
-        'PAKET USAHA' => 'PKU',
-        'KERAH TUMPUK PENDEK' => 'KTPD',
-        'BABY HAI' => null, // butuh sub-tipe, ditangani khusus di bawah
+        ['kode' => 'DRS', 'wajib' => [['DRESS']]],
+        ['kode' => 'GMS', 'wajib' => [['GAMIS']]],
+        ['kode' => 'JBM', 'wajib' => [['JUBAH'], ['MILO']]],
+        ['kode' => 'JMG', 'wajib' => [['JUBAH'], ['BEIGE']]],
+        ['kode' => 'SB', 'wajib' => [['SELIMUT']]],
+        ['kode' => 'OTGS', 'wajib' => [['ON'], ['THE'], ['GO']]],
+        ['kode' => 'JKB', 'wajib' => [['JAKET']]],
+        ['kode' => 'BC', 'wajib' => [['BABY'], ['CAPE']]],
+        ['kode' => 'BRA', 'wajib' => [['BRA', 'BH']]],
+        ['kode' => 'TS', 'wajib' => [['TAS']]],
+        ['kode' => 'MS', 'wajib' => [['MSHAPE', 'GENDONGAN']]],
+        ['kode' => 'PKU', 'wajib' => [['PAKET'], ['USAHA']]],
+        ['kode' => 'KTPD', 'wajib' => [['KERAH'], ['TUMPUK'], ['PENDEK']]],
+        ['kode' => 'PRE', 'wajib' => [['PREMIUM']]],
+        ['kode' => 'SR', 'wajib' => [['SETELAN'], ['RAJUT']]],
     ];
 
     /**
@@ -90,9 +99,6 @@ class PemetaanKodeProdukService
         'PINK' => 'OPK',
         'SAGE' => 'OSG',
         'COKLAT' => 'OCK',
-        //'RANDOM GIRL' => 'ORG', 
-        //'RANDOM NETRAL' => 'ORN', 
-        
     ];
 
     private const KAMUS_WARNA_AWAN = [
@@ -101,48 +107,34 @@ class PemetaanKodeProdukService
         'GOLD' => 'AGL',
     ];
 
+    private function tokenKata(string $teks): array
+    {
+        $teks = strtoupper($teks);
+        $teks = preg_replace('/[^A-Z0-9\s]/', ' ', $teks);
+
+        return array_values(array_filter(explode(' ', $teks), fn ($k) => $k !== ''));
+    }
+
     /**
      * Deteksi kode tipe dari teks nama gudang + variasi.
-     * Return null kalau tidak ada kata kunci yang cocok sama sekali.
+     * Return null kalau tidak ada aturan yang cocok sama sekali.
      */
     public function deteksiTipe(string $namaGudang, string $variasiGudang): ?string
     {
-        $teks = strtoupper($namaGudang . ' ' . $variasiGudang);
-        $namaTrim = strtoupper(trim($namaGudang));
-        $variasiTrim = strtoupper(trim($variasiGudang));
+        $kata = $this->tokenKata($namaGudang . ' ' . $variasiGudang);
 
-        // Kasus khusus: "BABY HAI" + arah panjang/pendek
-        if (str_contains($teks, 'BABY HAI')) {
-            if (str_contains($teks, 'PANJANG')) {
-                return 'BHPJ';
-            }
-            if (str_contains($teks, 'PENDEK')) {
-                return 'BHPD';
-            }
-        }
+        foreach (self::ATURAN_TIPE as $aturan) {
+            $semuaGrupTerpenuhi = true;
 
-        // Kasus khusus: pola "BAJU SET ... BT/PD/PJ - UM" (Setelan 3-set) —
-        // kode arah (Buntung/Pendek/Panjang) muncul sebagai akhiran terpisah dari
-        // kata "SET", dipisahkan nama warna, jadi tidak tertangkap kamus biasa.
-        // Divalidasi lewat kolom variasi ("3S BTG"/"3S PD"/"3S PJG") sebagai sinyal kedua.
-        if (str_contains($namaTrim, 'SET') || str_contains($variasiTrim, '3S')) {
-            if (preg_match('/\bBTG\b/', $variasiTrim) || preg_match('/\bBT\s*-\s*UM$/', $namaTrim)) {
-                return 'STBT';
+            foreach ($aturan['wajib'] as $grupSinonim) {
+                if (empty(array_intersect($grupSinonim, $kata))) {
+                    $semuaGrupTerpenuhi = false;
+                    break;
+                }
             }
-            if (preg_match('/\bPJG\b/', $variasiTrim) || preg_match('/\bPJ\s*-\s*UM$/', $namaTrim)) {
-                return 'STPJ';
-            }
-            if (preg_match('/(?:^|\s)PD(?:\s|$)/', $variasiTrim) || preg_match('/\bPD\s*-\s*UM$/', $namaTrim)) {
-                return 'STPD';
-            }
-        }
 
-        foreach (self::KAMUS_TIPE as $katakunci => $kode) {
-            if ($kode === null) {
-                continue;
-            }
-            if (str_contains($teks, $katakunci)) {
-                return $kode;
+            if ($semuaGrupTerpenuhi) {
+                return $aturan['kode'];
             }
         }
 
@@ -173,11 +165,17 @@ class PemetaanKodeProdukService
 
     /**
      * Cari SKU yang cocok berdasarkan kombinasi kode tipe + kode warna.
+     * Kode tipe dicocokkan sebagai SEGMEN UTUH di antara tanda strip (bukan sekadar substring —
+     * "TP" polos kalau dicari via LIKE '%TP%' ikut kena "STPD"/"TPS" juga, salah).
      * Return array of ['sku', 'nama_produk'].
      */
     public function cariSkuByKode(string $kodeTipe, string $kodeWarna): array
     {
-        return ProdukMaster::where('sku', 'like', "%{$kodeTipe}%")
+        return ProdukMaster::where(function ($q) use ($kodeTipe) {
+                $q->where('sku', 'like', "{$kodeTipe}-%")
+                    ->orWhere('sku', 'like', "%-{$kodeTipe}-%")
+                    ->orWhere('sku', 'like', "%-{$kodeTipe}");
+            })
             ->where('sku', 'like', "%{$kodeWarna}%")
             ->get(['sku', 'nama_produk'])
             ->toArray();
