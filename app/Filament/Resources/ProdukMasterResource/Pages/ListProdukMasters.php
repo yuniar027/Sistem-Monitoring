@@ -43,7 +43,7 @@ class ListProdukMasters extends ListRecords
                             ->send();
                     }),
 
-                Action::make('importTargetStokMinimum')
+                Actiong::make('importTargetStokMinimum')
                     ->label('Import Batas Stok Minimum (Excel)')
                     ->icon('heroicon-o-arrow-up-tray')
                     ->color('warning')
