@@ -4,8 +4,10 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\StokBarangGudangResource;
 use App\Models\StokBarangGudang;
+use App\Models\StokHarianGudang;
 use App\Models\StokVariasiHarian;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
@@ -16,6 +18,8 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class LaporanKebutuhanStok extends Page implements HasTable
 {
@@ -27,6 +31,94 @@ class LaporanKebutuhanStok extends Page implements HasTable
     protected static ?string $title = 'Laporan Kebutuhan Stok';
 
     protected string $view = 'filament.pages.laporan-kebutuhan-stok';
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('Export Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('success')
+                ->action(function () {
+                    return $this->exportKeExcel();
+                }),
+        ];
+    }
+
+    protected function queryLaporanExport(): Builder
+    {
+        $filters = $this->tableFilters ?? [];
+        $tanggalDari = $filters['tanggal']['dari'] ?? today()->toDateString();
+        $tanggalSampai = $filters['tanggal']['sampai'] ?? today()->toDateString();
+        $kategori = $filters['kategori']['kategori'] ?? null;
+
+        return StokHarianGudang::query()
+            ->with('barangGudang')
+            ->whereDate('tanggal', '>=', Carbon::parse($tanggalDari))
+            ->whereDate('tanggal', '<=', Carbon::parse($tanggalSampai))
+            ->when($kategori, fn (Builder $q, $kat) => $q->whereHas(
+                'barangGudang',
+                fn (Builder $q2) => $q2->where('kategori', $kat)
+            ))
+            ->orderBy('tanggal');
+    }
+
+    protected function exportKeExcel()
+    {
+        $filters = $this->tableFilters ?? [];
+        $tanggalDari = Carbon::parse($filters['tanggal']['dari'] ?? today()->toDateString());
+        $tanggalSampai = Carbon::parse($filters['tanggal']['sampai'] ?? today()->toDateString());
+        $kategori = $filters['kategori']['kategori'] ?? null;
+
+        $labelKategori = match ($kategori) {
+            StokBarangGudang::KATEGORI_AWAN => 'Awan',
+            StokBarangGudang::KATEGORI_ORIGAMI => 'Origami',
+            default => 'Semua Kategori',
+        };
+
+        $labelTanggal = $tanggalDari->equalTo($tanggalSampai)
+            ? $tanggalDari->format('d-m-Y')
+            : $tanggalDari->format('d-m-Y') . ' s/d ' . $tanggalSampai->format('d-m-Y');
+
+        $rows = $this->queryLaporanExport()->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Permintaan Stok');
+
+        $sheet->setCellValue('A1', 'Laporan Permintaan Stok');
+        $sheet->setCellValue('A2', 'Kategori: ' . $labelKategori);
+        $sheet->setCellValue('A3', 'Tanggal: ' . $labelTanggal);
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A2:A3')->getFont()->setBold(true);
+
+        $baris = 5;
+        $sheet->setCellValue("A{$baris}", 'Nama Barang');
+        $sheet->setCellValue("B{$baris}", 'Permintaan H');
+        $sheet->getStyle("A{$baris}:B{$baris}")->getFont()->setBold(true);
+        $baris++;
+
+        foreach ($rows as $row) {
+            $sheet->setCellValue("A{$baris}", $row->barangGudang?->nama_barang);
+            $sheet->setCellValue("B{$baris}", (float) $row->permintaan_h);
+            $baris++;
+        }
+
+        $sheet->getColumnDimension('A')->setWidth(35);
+        $sheet->getColumnDimension('B')->setWidth(15);
+
+        $namaFile = 'laporan-permintaan-stok-' . now()->format('Y-m-d_His') . '.xlsx';
+        $pathSementara = storage_path('app/temp/' . $namaFile);
+
+        if (! is_dir(dirname($pathSementara))) {
+            mkdir(dirname($pathSementara), 0755, true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($pathSementara);
+
+        return response()->download($pathSementara, $namaFile)->deleteFileAfterSend(true);
+    }
 
     public function table(Table $table): Table
     {
