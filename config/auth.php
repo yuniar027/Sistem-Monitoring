@@ -42,6 +42,11 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'gudang' => [
+        'driver' => 'session',
+        'provider' => 'gudang_users',
+        ],
     ],
 
     /*
@@ -65,6 +70,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'gudang_users' => [
+        'driver' => 'eloquent',
+        'model' => App\Models\GudangUser::class,
         ],
 
         // 'users' => [
