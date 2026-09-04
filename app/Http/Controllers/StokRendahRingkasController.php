@@ -18,21 +18,39 @@ class StokRendahRingkasController extends Controller
     {
         $tanggal = today()->toDateString();
 
+        // 1 query buat ambil semua alokasi khusus hari ini, bukan query
+        // terpisah per barang (N+1) yang bisa timeout kalau barangnya banyak
+        $alokasiPerBarang = \App\Models\StokAlokasiKhususHarian::query()
+            ->whereDate('tanggal', $tanggal)
+            ->selectRaw('barang_gudang_id, SUM(kuantitas) as total')
+            ->groupBy('barang_gudang_id')
+            ->pluck('total', 'barang_gudang_id');
+
         $barangKurang = StokHarianGudang::query()
             ->whereDate('tanggal', $tanggal)
             ->with('barangGudang')
             ->get()
-            ->filter(fn (StokHarianGudang $harian) => $harian->stok_akhir < (float) ($harian->barangGudang?->stok_aman ?? 0))
-            ->map(function (StokHarianGudang $harian) {
-                $barang = $harian->barangGudang;
+            ->map(function (StokHarianGudang $harian) use ($alokasiPerBarang) {
+                $stokSiap = (float) $harian->rak + (float) $harian->input;
+                $alokasi = (float) ($alokasiPerBarang[$harian->barang_gudang_id] ?? 0);
+                $stokAkhir = $stokSiap - $alokasi;
+
+                return [
+                    'stok_akhir' => $stokAkhir,
+                    'barang' => $harian->barangGudang,
+                ];
+            })
+            ->filter(fn ($item) => $item['stok_akhir'] < (float) ($item['barang']?->stok_aman ?? 0))
+            ->map(function ($item) {
+                $barang = $item['barang'];
 
                 return [
                     'kategori' => $barang?->kategori === StokBarangGudang::KATEGORI_ORIGAMI ? 'Origami' : 'Awan',
                     'kode_barang' => $barang?->kode_barang,
                     'nama_barang' => $barang?->nama_barang,
-                    'stok_akhir' => round($harian->stok_akhir, 2),
+                    'stok_akhir' => round($item['stok_akhir'], 2),
                     'stok_aman' => (float) ($barang?->stok_aman ?? 0),
-                    'kekurangan' => round((float) ($barang?->stok_aman ?? 0) - $harian->stok_akhir, 2),
+                    'kekurangan' => round((float) ($barang?->stok_aman ?? 0) - $item['stok_akhir'], 2),
                 ];
             })
             ->sortByDesc('kekurangan')
