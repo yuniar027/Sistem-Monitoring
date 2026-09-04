@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\GudangBeranda;
 use App\Filament\Pages\LaporanKebutuhanStok;
 use App\Filament\Resources\StokBarangGudangResource;
 use App\Filament\Resources\StokHarianGudangResource;
@@ -37,6 +38,7 @@ class GudangPanelProvider extends PanelProvider
                 StokVariasiHarianResource::class,
             ])
             ->pages([
+                GudangBeranda::class,
                 LaporanKebutuhanStok::class,
             ])
             ->middleware([
