@@ -25,8 +25,15 @@ class StokVariasiHarianResource extends Resource
     protected static ?string $modelLabel = 'Variasi Harian';
     protected static ?string $pluralModelLabel = 'Variasi Harian';
 
+    public static function isPabrik(): bool
+    {
+        return \Illuminate\Support\Facades\Auth::guard('gudang')->user()?->isPabrik() ?? false;
+    }
+
     public static function form(Schema $schema): Schema
     {
+        $readOnly = static::isPabrik();
+
         return $schema->schema([
             DatePicker::make('tanggal')
                 ->disabled()
@@ -34,15 +41,18 @@ class StokVariasiHarianResource extends Resource
             TextInput::make('stok_awal')
                 ->label('Stok Awal')
                 ->required()
-                ->numeric(),
+                ->numeric()
+                ->disabled($readOnly),
             TextInput::make('input')
                 ->label('Input')
                 ->required()
-                ->numeric(),
+                ->numeric()
+                ->disabled($readOnly),
             TextInput::make('out')
                 ->label('Out')
                 ->required()
-                ->numeric(),
+                ->numeric()
+                ->disabled($readOnly),
         ]);
     }
 

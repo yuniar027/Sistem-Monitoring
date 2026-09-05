@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use BackedEnum;
 use App\Filament\Resources\StokHarianGudangResource\Pages;
 use App\Filament\Resources\StokHarianGudangResource\RelationManagers\AlokasiKhususRelationManager;
+use App\Models\GudangUser;
 use App\Models\StokBarangGudang;
 use App\Models\StokHarianGudang;
 use Filament\Forms\Components\DatePicker;
@@ -18,6 +19,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class StokHarianGudangResource extends Resource
 {
@@ -28,8 +30,22 @@ class StokHarianGudangResource extends Resource
     protected static ?string $modelLabel = 'Stok Harian';
     protected static ?string $pluralModelLabel = 'Stok Harian';
 
+    public static function userSekarang(): ?GudangUser
+    {
+        return Auth::guard('gudang')->user();
+    }
+
+    public static function isPabrik(): bool
+    {
+        return static::userSekarang()?->isPabrik() ?? false;
+    }
+
     public static function form(Schema $schema): Schema
     {
+        // Akun PABRIK bisa LIHAT semua field (read-only), tapi cuma boleh
+        // EDIT um_titip_pabrik. Field lain otomatis ke-disable.
+        $readOnlyUntukPabrik = static::isPabrik();
+
         return $schema->schema([
             Select::make('barang_gudang_id')
                 ->relationship('barangGudang', 'nama_barang')
@@ -41,17 +57,21 @@ class StokHarianGudangResource extends Resource
             TextInput::make('rak')
                 ->label('Rak')
                 ->required()
-                ->numeric(),
+                ->numeric()
+                ->disabled($readOnlyUntukPabrik),
             TextInput::make('input')
                 ->label('Input')
                 ->required()
-                ->numeric(),
+                ->numeric()
+                ->disabled($readOnlyUntukPabrik),
             TextInput::make('um_titip_pabrik')
                 ->label('UM Titip Pabrik')
-                ->numeric(),
+                ->numeric()
+                ->helperText($readOnlyUntukPabrik ? 'Ini satu-satunya field yang bisa kamu isi' : null),
             TextInput::make('stok_mentah_umma')
-                ->label('Stok Mentah Umma')
-                ->numeric(),
+                ->label('Stok Keseluruhan')
+                ->numeric()
+                ->disabled($readOnlyUntukPabrik),
         ]);
     }
 
@@ -78,7 +98,7 @@ class StokHarianGudangResource extends Resource
                     ->color(fn (StokHarianGudang $record) => $record->stok_akhir < ($record->barangGudang?->stok_aman ?? 0) ? 'danger' : 'success')
                     ->weight('bold'),
                 TextColumn::make('um_titip_pabrik')->label('UM Titip Pabrik'),
-                TextColumn::make('stok_mentah_umma')->label('Stok Mentah Umma'),
+                TextColumn::make('stok_mentah_umma')->label('Stok Keseluruhan'),
             ])
             ->filters([
                 SelectFilter::make('kategori')

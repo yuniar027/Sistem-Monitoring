@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\StokBarangGudang;
 use App\Models\StokHarianGudang;
 use Filament\Pages\Dashboard;
+use Illuminate\Support\Facades\Auth;
 
 class GudangBeranda extends Dashboard
 {
@@ -12,6 +13,11 @@ class GudangBeranda extends Dashboard
     protected static ?string $title = 'Selamat Bekerja!';
 
     protected string $view = 'filament.pages.gudang-beranda';
+
+    public function isPabrik(): bool
+    {
+        return Auth::guard('gudang')->user()?->isPabrik() ?? false;
+    }
 
     public function getSnapshotHariIni()
     {

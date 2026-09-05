@@ -12,6 +12,10 @@ class ListStokBarangGudangs extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        if (StokBarangGudangResource::isPabrik()) {
+            return [];
+        }
+
         return [
             CreateAction::make(),
         ];

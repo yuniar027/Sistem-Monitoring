@@ -6,13 +6,17 @@ use BackedEnum;
 use App\Filament\Resources\StokBarangGudangResource\Pages;
 use App\Filament\Resources\StokBarangGudangResource\RelationManagers\VariasiRelationManager;
 use App\Models\StokBarangGudang;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class StokBarangGudangResource extends Resource
 {
@@ -22,6 +26,11 @@ class StokBarangGudangResource extends Resource
     protected static ?string $navigationLabel = 'Master Barang Gudang';
     protected static ?string $modelLabel = 'Barang Gudang';
     protected static ?string $pluralModelLabel = 'Master Barang Gudang';
+
+    public static function isPabrik(): bool
+    {
+        return Auth::guard('gudang')->user()?->isPabrik() ?? false;
+    }
 
     public static function kategoriOptions(): array
     {
@@ -33,22 +42,33 @@ class StokBarangGudangResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
+        // Pabrik cuma boleh LIHAT data master, nggak boleh diubah sama sekali
+        $readOnly = static::isPabrik();
+
         return $schema->schema([
             Radio::make('kategori')
                 ->options(static::kategoriOptions())
                 ->required()
                 ->default(StokBarangGudang::KATEGORI_AWAN)
-                ->inline(),
+                ->live()
+                ->inline()
+                ->disabled($readOnly),
             TextInput::make('kode_barang')
-                ->helperText('Kosongkan untuk generate otomatis dari nama barang')
-                ->maxLength(50),
+                ->required(fn (Get $get) => $get('kategori') === StokBarangGudang::KATEGORI_ORIGAMI)
+                ->helperText(fn (Get $get) => $get('kategori') === StokBarangGudang::KATEGORI_ORIGAMI
+                    ? 'Wajib diisi manual sesuai kode dari pabrik Origami'
+                    : 'Kosongkan untuk generate otomatis dari nama barang')
+                ->maxLength(50)
+                ->disabled($readOnly),
             TextInput::make('nama_barang')
                 ->required()
-                ->maxLength(255),
+                ->maxLength(255)
+                ->disabled($readOnly),
             TextInput::make('stok_aman')
                 ->required()
                 ->numeric()
-                ->default(0),
+                ->default(0)
+                ->disabled($readOnly),
         ]);
     }
 
@@ -69,6 +89,10 @@ class StokBarangGudangResource extends Resource
             ])
             ->filters([
                 SelectFilter::make('kategori')->options(static::kategoriOptions()),
+            ])
+            ->recordActions(static::isPabrik() ? [] : [
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->defaultSort('nama_barang');
     }

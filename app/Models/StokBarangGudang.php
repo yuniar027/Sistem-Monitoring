@@ -31,10 +31,54 @@ class StokBarangGudang extends Model
     protected static function booted(): void
     {
         static::creating(function (self $barang) {
-            if (empty($barang->kode_barang)) {
+            // Auto-generate kode_barang HANYA untuk kategori Awan.
+            // Origami sudah punya kode dari pabrik, jadi harus diisi manual.
+            if ($barang->kategori === self::KATEGORI_AWAN && empty($barang->kode_barang)) {
                 $barang->kode_barang = static::generateKodeBarang($barang->nama_barang);
             }
         });
+    }
+
+    /**
+     * Akhiran yang dianggap varian ukuran dari barang dasar yang sama,
+     * contoh: "KOALA COKLAT BT", "KOALA COKLAT PD", "KOALA COKLAT PJ"
+     * semuanya punya nama dasar "KOALA COKLAT".
+     */
+    public const AKHIRAN_VARIAN = ['BT', 'PD', 'PJ'];
+
+    /**
+     * Ambil nama dasar barang (tanpa akhiran BT/PD/PJ), dipakai untuk
+     * mengelompokkan barang yang sebenarnya satu jenis tapi beda ukuran.
+     */
+    public static function hitungNamaDasar(string $namaBarang): string
+    {
+        $kata = preg_split('/\s+/', trim($namaBarang));
+        $akhiran = Str::upper(end($kata));
+
+        if (in_array($akhiran, self::AKHIRAN_VARIAN, true) && count($kata) > 1) {
+            array_pop($kata);
+
+            return implode(' ', $kata);
+        }
+
+        return trim($namaBarang);
+    }
+
+    /**
+     * Akhiran varian barang ini (BT/PD/PJ), atau null kalau bukan
+     * bagian dari grup varian.
+     */
+    public function getAkhiranVarianAttribute(): ?string
+    {
+        $kata = preg_split('/\s+/', trim($this->nama_barang));
+        $akhiran = Str::upper(end($kata));
+
+        return in_array($akhiran, self::AKHIRAN_VARIAN, true) ? $akhiran : null;
+    }
+
+    public function getNamaDasarAttribute(): string
+    {
+        return static::hitungNamaDasar($this->nama_barang);
     }
 
     /**
