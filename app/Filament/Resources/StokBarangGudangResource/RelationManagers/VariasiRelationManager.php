@@ -10,12 +10,18 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class VariasiRelationManager extends RelationManager
 {
     protected static string $relationship = 'variasi';
     protected static ?string $title = 'Variasi / Kemasan';
     protected static ?string $recordTitleAttribute = 'kode_variasi';
+
+    protected static function isPabrik(): bool
+    {
+        return Auth::guard('gudang')->user()?->isPabrik() ?? false;
+    }
 
     public function form(Schema $schema): Schema
     {
@@ -35,6 +41,14 @@ class VariasiRelationManager extends RelationManager
 
     public function table(Table $table): Table
     {
+        if (static::isPabrik()) {
+            return $table
+                ->columns([
+                    TextColumn::make('kode_variasi')->label('Kode Variasi')->sortable(),
+                    TextColumn::make('stok_aman')->label('Stok Aman'),
+                ]);
+        }
+
         return $table
             ->columns([
                 TextColumn::make('kode_variasi')->label('Kode Variasi')->sortable(),

@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\StokBarangGudang;
 use App\Models\StokHarianGudang;
 use Filament\Pages\Dashboard;
+use Illuminate\Support\Facades\Auth;
 
 class GudangBeranda extends Dashboard
 {
@@ -12,6 +13,11 @@ class GudangBeranda extends Dashboard
     protected static ?string $title = 'Selamat Bekerja!';
 
     protected string $view = 'filament.pages.gudang-beranda';
+
+    public function isPabrik(): bool
+    {
+        return Auth::guard('gudang')->user()?->isPabrik() ?? false;
+    }
 
     public function getSnapshotHariIni()
     {
@@ -23,8 +29,24 @@ class GudangBeranda extends Dashboard
 
     public function getJumlahStokRendah(): int
     {
+        $tanggal = today()->toDateString();
+
+        // ambil SEMUA alokasi khusus hari ini dalam 1 query, bukan query
+        // terpisah per barang (sebelumnya ini bikin 561 query -> timeout)
+        $alokasiPerBarang = \App\Models\StokAlokasiKhususHarian::query()
+            ->whereDate('tanggal', $tanggal)
+            ->selectRaw('barang_gudang_id, SUM(kuantitas) as total')
+            ->groupBy('barang_gudang_id')
+            ->pluck('total', 'barang_gudang_id');
+
         return $this->getSnapshotHariIni()
-            ->filter(fn (StokHarianGudang $h) => $h->stok_akhir < (float) ($h->barangGudang?->stok_aman ?? 0))
+            ->filter(function (StokHarianGudang $h) use ($alokasiPerBarang) {
+                $stokSiap = (float) $h->rak + (float) $h->input;
+                $alokasi = (float) ($alokasiPerBarang[$h->barang_gudang_id] ?? 0);
+                $stokAkhir = $stokSiap - $alokasi;
+
+                return $stokAkhir < (float) ($h->barangGudang?->stok_aman ?? 0);
+            })
             ->count();
     }
 
