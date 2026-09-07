@@ -3,9 +3,9 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\GudangBeranda;
+use App\Filament\Pages\InputStokHarianGabungan;
 use App\Filament\Pages\LaporanKebutuhanStok;
 use App\Filament\Resources\StokBarangGudangResource;
-use App\Filament\Resources\StokHarianGudangResource;
 use App\Filament\Resources\StokVariasiHarianResource;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -34,11 +34,11 @@ class GudangPanelProvider extends PanelProvider
             // dan nggak ke-mix sama resource sistem besar di /admin.
             ->resources([
                 StokBarangGudangResource::class,
-                StokHarianGudangResource::class,
                 StokVariasiHarianResource::class,
             ])
             ->pages([
                 GudangBeranda::class,
+                InputStokHarianGabungan::class,
                 LaporanKebutuhanStok::class,
             ])
             ->middleware([
