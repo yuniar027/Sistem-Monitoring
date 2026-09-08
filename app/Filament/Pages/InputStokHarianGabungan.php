@@ -35,9 +35,33 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
 
     public string $search = '';
 
+    public int $page = 1;
+
+    public int $perPage = 10;
+
     public function mount(): void
     {
         $this->tanggal = today()->toDateString();
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->page = 1;
+    }
+
+    public function updatedKategoriFilter(): void
+    {
+        $this->page = 1;
+    }
+
+    public function updatedTanggal(): void
+    {
+        $this->page = 1;
+    }
+
+    public function updatedPerPage(): void
+    {
+        $this->page = 1;
     }
 
     public function isPabrik(): bool
@@ -77,6 +101,26 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
             })
             ->sortBy('nama_dasar')
             ->values();
+    }
+
+    /**
+     * Versi terpaginasi dari getKelompokList() untuk ditampilkan di tabel.
+     */
+    public function getKelompokListPaginated(): \Illuminate\Pagination\LengthAwarePaginator
+    {
+        $semua = $this->getKelompokList();
+        $totalHalaman = max(1, (int) ceil($semua->count() / $this->perPage));
+
+        if ($this->page > $totalHalaman) {
+            $this->page = $totalHalaman;
+        }
+
+        return new \Illuminate\Pagination\LengthAwarePaginator(
+            $semua->forPage($this->page, $this->perPage)->values(),
+            $semua->count(),
+            $this->perPage,
+            $this->page
+        );
     }
 
     /**

@@ -33,7 +33,7 @@
         </div>
     </div>
 
-    @php $daftar = $this->getKelompokList(); @endphp
+    @php $daftar = $this->getKelompokListPaginated(); @endphp
 
     <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 0.75rem; overflow: hidden;">
         <table style="width: 100%; border-collapse: collapse;">
@@ -48,7 +48,7 @@
             <tbody>
                 @forelse ($daftar as $kelompok)
                     <tr style="border-bottom: 1px solid #f3f4f6;">
-                        <td style="padding: 0.75rem 1rem; vertical-align: top;">
+                        <td style="padding: 0.75rem 1rem; vertical-align: top; white-space: nowrap;">
                             <span style="display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 9999px; background: {{ $kelompok['kategori'] === 'origami' ? '#fef3c7' : '#dbeafe' }}; color: {{ $kelompok['kategori'] === 'origami' ? '#92400e' : '#1e40af' }};">
                                 {{ $kelompok['kategori'] === 'origami' ? 'Origami' : 'Awan' }}
                             </span>
@@ -81,7 +81,45 @@
         </table>
     </div>
 
-    <div style="margin-top: 0.75rem; font-size: 0.8rem; color: #9ca3af;">
-        Menampilkan {{ $daftar->count() }} kelompok barang
+    {{-- Kontrol pagination --}}
+    <div style="margin-top: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+        <div style="font-size: 0.85rem; color: #6b7280;">
+            Menampilkan {{ $daftar->firstItem() ?? 0 }}–{{ $daftar->lastItem() ?? 0 }} dari {{ $daftar->total() }} kelompok barang
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label style="font-size: 0.85rem; color: #6b7280;">Per halaman</label>
+            <select
+                wire:model.live="perPage"
+                style="border: 1px solid #d1d5db; border-radius: 0.4rem; padding: 0.3rem 0.5rem; font-size: 0.85rem;"
+            >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+
+            <button
+                type="button"
+                wire:click="$set('page', {{ max(1, $this->page - 1) }})"
+                @if ($this->page <= 1) disabled @endif
+                style="border: 1px solid #d1d5db; border-radius: 0.4rem; padding: 0.35rem 0.75rem; font-size: 0.85rem; background: #fff; cursor: {{ $this->page <= 1 ? 'not-allowed' : 'pointer' }}; opacity: {{ $this->page <= 1 ? '0.5' : '1' }};"
+            >
+                &laquo; Sebelumnya
+            </button>
+
+            <span style="font-size: 0.85rem; color: #374151; padding: 0 0.25rem;">
+                Halaman {{ $daftar->currentPage() }} dari {{ $daftar->lastPage() }}
+            </span>
+
+            <button
+                type="button"
+                wire:click="$set('page', {{ min($daftar->lastPage(), $this->page + 1) }})"
+                @if ($this->page >= $daftar->lastPage()) disabled @endif
+                style="border: 1px solid #d1d5db; border-radius: 0.4rem; padding: 0.35rem 0.75rem; font-size: 0.85rem; background: #fff; cursor: {{ $this->page >= $daftar->lastPage() ? 'not-allowed' : 'pointer' }}; opacity: {{ $this->page >= $daftar->lastPage() ? '0.5' : '1' }};"
+            >
+                Selanjutnya &raquo;
+            </button>
+        </div>
     </div>
 </x-filament-panels::page>

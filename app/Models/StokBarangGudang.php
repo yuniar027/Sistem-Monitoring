@@ -47,12 +47,26 @@ class StokBarangGudang extends Model
     public const AKHIRAN_VARIAN = ['BT', 'PD', 'PJ'];
 
     /**
-     * Ambil nama dasar barang (tanpa akhiran BT/PD/PJ), dipakai untuk
-     * mengelompokkan barang yang sebenarnya satu jenis tapi beda ukuran.
+     * Buang tag pabrik "- UM" di paling akhir nama barang kalau ada
+     * (contoh: "BAJU SET DK KOALA NAVY PJ - UM" -> "BAJU SET DK KOALA NAVY PJ").
+     * Tag ini cuma penanda dikirim ke Umma, bukan bagian nama sebenarnya,
+     * dan nggak semua barang punya tag ini.
+     */
+    protected static function buangTagPabrik(string $namaBarang): string
+    {
+        return trim(preg_replace('/\s*-\s*UM$/i', '', trim($namaBarang)));
+    }
+
+    /**
+     * Ambil nama dasar barang (tanpa tag "- UM" dan tanpa akhiran
+     * BT/PD/PJ), dipakai untuk mengelompokkan barang yang sebenarnya
+     * satu jenis tapi beda ukuran.
      */
     public static function hitungNamaDasar(string $namaBarang): string
     {
-        $kata = preg_split('/\s+/', trim($namaBarang));
+        $namaBersih = static::buangTagPabrik($namaBarang);
+
+        $kata = preg_split('/\s+/', trim($namaBersih));
         $akhiran = Str::upper(end($kata));
 
         if (in_array($akhiran, self::AKHIRAN_VARIAN, true) && count($kata) > 1) {
@@ -61,7 +75,7 @@ class StokBarangGudang extends Model
             return implode(' ', $kata);
         }
 
-        return trim($namaBarang);
+        return $namaBersih;
     }
 
     /**
@@ -70,7 +84,9 @@ class StokBarangGudang extends Model
      */
     public function getAkhiranVarianAttribute(): ?string
     {
-        $kata = preg_split('/\s+/', trim($this->nama_barang));
+        $namaBersih = static::buangTagPabrik($this->nama_barang);
+
+        $kata = preg_split('/\s+/', trim($namaBersih));
         $akhiran = Str::upper(end($kata));
 
         return in_array($akhiran, self::AKHIRAN_VARIAN, true) ? $akhiran : null;
