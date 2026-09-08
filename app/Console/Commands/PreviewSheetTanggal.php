@@ -19,19 +19,32 @@ class PreviewSheetTanggal extends Command
      * Prefix bulan (huruf pertama yang dicek pada nama sheet) -> nomor bulan.
      * Dicek berurutan, pakai starts-with, jadi cukup 2-3 huruf pembeda.
      */
+    /**
+     * Koreksi manual untuk nama sheet yang kelihatan typo di file asli
+     * (dikonfirmasi manual, BUKAN tebakan sistem). Cocokkan nama sheet
+     * PERSIS (trim, case-sensitive) -> hari & bulan yang benar.
+     */
+    protected array $koreksiManual = [
+        '25 feb' => ['hari' => 25, 'bulan' => 12],   // typo, harusnya "25 des"
+        '09 JUNI' => ['hari' => 9, 'bulan' => 7],    // typo, harusnya "09 juli"
+    ];
+
     protected array $prefixBulan = [
         'jan' => 1,
         'feb' => 2,
         'mar' => 3,
         'apr' => 4,
         'mei' => 5,
+        'may' => 5,   // ejaan Inggris, beda dari "mei"
         'jun' => 6,
         'jul' => 7,
-        'ag' => 8,   // agt, agts, agst, ags, agustus - semua diawali "ag"
+        'ag' => 8,    // agt, agts, agst, ags, agustus, august - semua diawali "ag"
         'sep' => 9,
         'okt' => 10,
+        'oct' => 10,  // ejaan Inggris, beda dari "okt"
         'nov' => 11,
         'des' => 12,
+        'dec' => 12,  // ejaan Inggris, beda dari "des"
     ];
 
     public function handle(): int
@@ -129,14 +142,38 @@ class PreviewSheetTanggal extends Command
         }
         unset($row);
 
+        // Deteksi loncatan tanggal yang kegedean dibanding sheet sebelumnya
+        // (sequence-nya biasanya rapat harian, jadi loncat > 25 hari itu
+        // mencurigakan - tanda kemungkinan typo nama sheet di masa lalu)
+        $tanggalSebelumnya = null;
+        foreach ($hasilParse as &$row) {
+            $row['gap_besar'] = false;
+
+            if (! $row['dikenali'] || ! $row['tanggal']) {
+                continue;
+            }
+
+            if ($tanggalSebelumnya !== null) {
+                $selisihHari = (strtotime($row['tanggal']) - strtotime($tanggalSebelumnya)) / 86400;
+
+                if ($selisihHari > 25 || $selisihHari < 0) {
+                    $row['gap_besar'] = true;
+                }
+            }
+
+            $tanggalSebelumnya = $row['tanggal'];
+        }
+        unset($row);
+
         // Tulis ke CSV
         $outputPath = $this->option('output') ?: (pathinfo($path, PATHINFO_DIRNAME) . '/' . pathinfo($path, PATHINFO_FILENAME) . '-preview.csv');
         $handle = fopen($outputPath, 'w');
-        fputcsv($handle, ['urutan_sheet', 'nama_sheet', 'tanggal_tebakan', 'dikenali', 'duplikat']);
+        fputcsv($handle, ['urutan_sheet', 'nama_sheet', 'tanggal_tebakan', 'dikenali', 'duplikat', 'gap_besar']);
 
         $jumlahDikenali = 0;
         $jumlahTidakDikenali = 0;
         $jumlahDuplikat = 0;
+        $jumlahGapBesar = 0;
 
         foreach ($hasilParse as $row) {
             fputcsv($handle, [
@@ -145,6 +182,7 @@ class PreviewSheetTanggal extends Command
                 $row['tanggal'] ?? '',
                 $row['dikenali'] ? 'YA' : 'TIDAK',
                 $row['duplikat'] ? 'YA - CEK MANUAL' : '',
+                $row['gap_besar'] ? 'YA - CEK MANUAL' : '',
             ]);
 
             if ($row['dikenali']) {
@@ -156,39 +194,62 @@ class PreviewSheetTanggal extends Command
             if ($row['duplikat']) {
                 $jumlahDuplikat++;
             }
+
+            if ($row['gap_besar']) {
+                $jumlahGapBesar++;
+            }
         }
 
         fclose($handle);
 
         $this->info("Preview selesai, disimpan ke: {$outputPath}");
-        $this->info("Dikenali: {$jumlahDikenali}, Tidak dikenali (dilewati): {$jumlahTidakDikenali}, Duplikat tanggal (perlu dicek manual): {$jumlahDuplikat}");
+        $this->info("Dikenali: {$jumlahDikenali}, Tidak dikenali (dilewati): {$jumlahTidakDikenali}, Duplikat tanggal: {$jumlahDuplikat}, Gap tanggal mencurigakan: {$jumlahGapBesar}");
 
         return self::SUCCESS;
     }
 
     /**
-     * Parse "05 AGT", "5 agustus", "31 des", dll -> ['hari' => 5, 'bulan' => 8].
-     * Return null kalau polanya nggak dikenali sama sekali.
+     * Parse "05 AGT", "5 agustus", "31 des", "0601" (DDMM), "25 02" (DD MM)
+     * -> ['hari' => 5, 'bulan' => 8]. Return null kalau polanya nggak
+     * dikenali sama sekali.
      */
     protected function parseHariBulan(string $namaSheet): ?array
     {
-        if (! preg_match('/^\s*(\d{1,2})\s*([A-Za-z]+)/', trim($namaSheet), $m)) {
-            return null;
+        $nama = trim($namaSheet);
+
+        // Cek koreksi manual dulu (typo yang udah dikonfirmasi)
+        if (isset($this->koreksiManual[$nama])) {
+            return $this->koreksiManual[$nama];
         }
 
-        $hari = (int) $m[1];
-        $kataBulan = strtolower($m[2]);
+        // Pola 1: ada nama bulan, contoh "05 AGT", "5 agustus"
+        if (preg_match('/^\s*(\d{1,2})\s*([A-Za-z]+)/', $nama, $m)) {
+            $hari = (int) $m[1];
+            $kataBulan = strtolower($m[2]);
 
-        if ($hari < 1 || $hari > 31) {
-            return null;
-        }
-
-        foreach ($this->prefixBulan as $prefix => $nomorBulan) {
-            if (str_starts_with($kataBulan, $prefix)) {
-                return ['hari' => $hari, 'bulan' => $nomorBulan];
+            foreach ($this->prefixBulan as $prefix => $nomorBulan) {
+                if (str_starts_with($kataBulan, $prefix)) {
+                    return $this->validasiTanggal($hari, $nomorBulan);
+                }
             }
+
+            return null;
+        }
+
+        // Pola 2: angka murni DDMM (4 digit) atau "DD MM" (dipisah spasi)
+        if (preg_match('/^\s*(\d{2})\s*(\d{2})\s*$/', $nama, $m)) {
+            return $this->validasiTanggal((int) $m[1], (int) $m[2]);
         }
 
         return null;
+    }
+
+    protected function validasiTanggal(int $hari, int $bulan): ?array
+    {
+        if ($hari < 1 || $hari > 31 || $bulan < 1 || $bulan > 12) {
+            return null;
+        }
+
+        return ['hari' => $hari, 'bulan' => $bulan];
     }
 }
