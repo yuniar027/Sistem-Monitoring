@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\GudangBeranda;
 use App\Filament\Pages\InputStokHarianGabungan;
 use App\Filament\Pages\LaporanKebutuhanStok;
+use App\Filament\Pages\StokMati;
 use App\Filament\Resources\StokBarangGudangResource;
 use App\Filament\Resources\StokVariasiHarianResource;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -40,6 +41,7 @@ class GudangPanelProvider extends PanelProvider
                 GudangBeranda::class,
                 InputStokHarianGabungan::class,
                 LaporanKebutuhanStok::class,
+                StokMati::class,
             ])
             ->middleware([
                 EncryptCookies::class,
