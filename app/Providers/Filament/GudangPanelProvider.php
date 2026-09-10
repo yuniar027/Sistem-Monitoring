@@ -8,6 +8,7 @@ use App\Filament\Pages\LaporanKebutuhanStok;
 use App\Filament\Pages\StokMati;
 use App\Filament\Resources\StokBarangGudangResource;
 use App\Filament\Resources\StokVariasiHarianResource;
+use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -47,6 +48,7 @@ class GudangPanelProvider extends PanelProvider
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
                 StartSession::class,
+                AuthenticateSession::class,
                 ShareErrorsFromSession::class,
                 VerifyCsrfToken::class,
                 SubstituteBindings::class,
@@ -54,7 +56,7 @@ class GudangPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
-                AuthenticateSession::class,
+                Authenticate::class,
             ]);
     }
 }
