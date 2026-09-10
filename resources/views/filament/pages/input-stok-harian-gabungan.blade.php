@@ -62,11 +62,18 @@
                                     {{ $anggota->akhiran_varian ?? $anggota->nama_barang }}
                                 </span>
                             @endforeach
+                            @if ($kelompok['topi_pasangan_id'])
+                                <span style="display: inline-block; background: #fef9c3; border-radius: 0.35rem; padding: 0.1rem 0.45rem; margin: 0.1rem; font-size: 0.8rem; color: #854d0e;" title="{{ $kelompok['topi_pasangan_nama'] }}">
+                                    + Topi
+                                </span>
+                            @endif
                         </td>
                         <td style="padding: 0.75rem 1rem; vertical-align: top; text-align: right; white-space: nowrap;">
                             {{ ($this->isiKelompokAction)([
                                 'nama_dasar' => $kelompok['nama_dasar'],
-                                'barang_ids' => $kelompok['anggota']->pluck('id')->toArray(),
+                                'barang_ids' => $kelompok['topi_pasangan_id']
+                                    ? [...$kelompok['anggota']->pluck('id')->toArray(), $kelompok['topi_pasangan_id']]
+                                    : $kelompok['anggota']->pluck('id')->toArray(),
                             ]) }}
                         </td>
                     </tr>
