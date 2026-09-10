@@ -147,4 +147,33 @@ class StokBarangGudang extends Model
 
         return $this->harian()->whereDate('tanggal', $tanggal)->first();
     }
+
+    /**
+     * Cari barang "TOPI SET <motif>" yang jadi pasangan grup
+     * "BAJU SET <motif>" (BT/PD/PJ), supaya bisa ditambahkan sebagai
+     * varian ke-4 di form gabungan. Return null kalau nama_dasar bukan
+     * "BAJU SET ..." atau nggak ada pasangan Topi-nya.
+     */
+    public static function cariTopiPasangan(string $namaDasar, string $kategori): ?self
+    {
+        $prefixBaju = 'BAJU SET ';
+
+        if (! Str::startsWith(Str::upper($namaDasar), $prefixBaju)) {
+            return null;
+        }
+
+        $motif = trim(Str::substr($namaDasar, Str::length($prefixBaju)));
+        $namaTopiDicari = 'TOPI SET ' . $motif;
+
+        return static::query()
+            ->where('kategori', $kategori)
+            ->where('nama_barang', 'ilike', '%' . $motif . '%')
+            ->get()
+            ->first(fn (self $b) => Str::upper(static::buangTagPabrikPublic($b->nama_barang)) === Str::upper($namaTopiDicari));
+    }
+
+    public static function buangTagPabrikPublic(string $namaBarang): string
+    {
+        return static::buangTagPabrik($namaBarang);
+    }
 }

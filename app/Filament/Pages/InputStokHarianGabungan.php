@@ -92,11 +92,14 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
             ->groupBy(fn (StokBarangGudang $b) => $b->kategori . '|' . $b->nama_dasar)
             ->map(function ($anggota) {
                 $pertama = $anggota->first();
+                $topiPasangan = StokBarangGudang::cariTopiPasangan($pertama->nama_dasar, $pertama->kategori);
 
                 return [
                     'nama_dasar' => $pertama->nama_dasar,
                     'kategori' => $pertama->kategori,
                     'anggota' => $anggota->values(),
+                    'topi_pasangan_id' => $topiPasangan?->id,
+                    'topi_pasangan_nama' => $topiPasangan?->nama_barang,
                 ];
             })
             ->sortBy('nama_dasar')
@@ -230,7 +233,11 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                         continue;
                     }
 
-                    $labelSeksi = $barang->akhiran_varian ?? $barang->nama_barang;
+                    $labelSeksi = $barang->akhiran_varian
+                        ?? (\Illuminate\Support\Str::startsWith(
+                            \Illuminate\Support\Str::upper(StokBarangGudang::buangTagPabrikPublic($barang->nama_barang)),
+                            'TOPI SET'
+                        ) ? 'Topi' : $barang->nama_barang);
 
                     $schema[] = Section::make($labelSeksi)
                         ->headerActions([
