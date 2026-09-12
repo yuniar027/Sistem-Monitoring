@@ -95,11 +95,15 @@ class ImportRiwayatLengkap extends Command
         $readerData->setLoadSheetsOnly(array_keys($petaTanggal));
         $spreadsheet = $readerData->load($path);
 
-        // === TAHAP 3: proses tiap sheet, tulis data (sama persis logikanya dengan stok:import-harian-excel) ===
+        // === TAHAP 3: proses tiap sheet, tulis data pakai BATCH UPSERT (bukan
+        // query satu-satu per baris) supaya nggak kena ratusan ribu round-trip
+        // ke database cloud ===
         $barangCache = [];
+        $variasiCache = [];
         $totalBarang = 0;
         $totalVariasi = 0;
         $totalAlokasi = 0;
+        $totalHarianBarang = 0;
         $sheetGagal = [];
 
         $progressBar = $this->output->createProgressBar(count($petaTanggal));
@@ -150,6 +154,12 @@ class ImportRiwayatLengkap extends Command
                     }
                 }
 
+                // kumpulkan dulu semua baris di sheet ini, upsert 1x di akhir
+                $batchHarianBarang = [];
+                $batchAlokasi = [];
+                $batchHarianVariasi = [];
+                $now = now();
+
                 foreach (array_slice($rows, 1) as $row) {
                     $namaBarang = trim(preg_replace('/\s+/', ' ', (string) ($row[$idxNama] ?? '')));
 
@@ -163,6 +173,9 @@ class ImportRiwayatLengkap extends Command
                     $titipPabrik = $idxTitipPabrik !== false ? $row[$idxTitipPabrik] ?? null : null;
                     $stokMentahUmma = $idxStokMentahUmma !== false ? $row[$idxStokMentahUmma] ?? null : null;
 
+                    // barang: masih firstOrCreate satu-satu, TAPI di-cache jadi
+                    // total query-nya cuma sebanyak barang UNIK (ratusan),
+                    // bukan sebanyak baris x sheet (ratusan ribu)
                     $cacheKey = $kategori . '|' . $namaBarang;
                     if (! isset($barangCache[$cacheKey])) {
                         $barang = StokBarangGudang::firstOrCreate(
@@ -175,15 +188,17 @@ class ImportRiwayatLengkap extends Command
                         $barang = $barangCache[$cacheKey];
                     }
 
-                    $barang->harian()->updateOrCreate(
-                        ['tanggal' => $tanggal],
-                        [
-                            'rak' => $rak,
-                            'input' => $inputBarang,
-                            'um_titip_pabrik' => $titipPabrik !== null && $titipPabrik !== '' ? (float) $titipPabrik : null,
-                            'stok_mentah_umma' => $stokMentahUmma !== null && $stokMentahUmma !== '' ? (float) $stokMentahUmma : null,
-                        ]
-                    );
+                    $batchHarianBarang[] = [
+                        'barang_gudang_id' => $barang->id,
+                        'tanggal' => $tanggal,
+                        'rak' => $rak,
+                        'input' => $inputBarang,
+                        'um_titip_pabrik' => $titipPabrik !== null && $titipPabrik !== '' ? (float) $titipPabrik : null,
+                        'stok_mentah_umma' => $stokMentahUmma !== null && $stokMentahUmma !== '' ? (float) $stokMentahUmma : null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    $totalHarianBarang++;
 
                     foreach ($kolomK as $colIdx => $kodeAlokasi) {
                         $nilai = $row[$colIdx] ?? null;
@@ -191,14 +206,14 @@ class ImportRiwayatLengkap extends Command
                             continue;
                         }
 
-                        StokAlokasiKhususHarian::updateOrCreate(
-                            [
-                                'barang_gudang_id' => $barang->id,
-                                'tanggal' => $tanggal,
-                                'kode_alokasi' => $kodeAlokasi,
-                            ],
-                            ['kuantitas' => (float) $nilai]
-                        );
+                        $batchAlokasi[] = [
+                            'barang_gudang_id' => $barang->id,
+                            'tanggal' => $tanggal,
+                            'kode_alokasi' => $kodeAlokasi,
+                            'kuantitas' => (float) $nilai,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
                         $totalAlokasi++;
                     }
 
@@ -212,25 +227,59 @@ class ImportRiwayatLengkap extends Command
                             $inputVariasi = (float) ($row[$idxVariasi + 3] ?? 0);
                             $outVariasi = (float) ($row[$idxVariasi + 5] ?? 0);
 
-                            $variasi = StokVariasiGudang::firstOrCreate(
-                                [
-                                    'barang_gudang_id' => $barang->id,
-                                    'kode_variasi' => $kodeVariasi,
-                                ],
-                                ['stok_aman' => $stokAmanVariasi]
-                            );
+                            // variasi: sama, di-cache biar cuma query sekali
+                            // per kombinasi (barang, kode_variasi) yang UNIK
+                            $variasiCacheKey = $barang->id . '|' . $kodeVariasi;
+                            if (! isset($variasiCache[$variasiCacheKey])) {
+                                $variasi = StokVariasiGudang::firstOrCreate(
+                                    [
+                                        'barang_gudang_id' => $barang->id,
+                                        'kode_variasi' => $kodeVariasi,
+                                    ],
+                                    ['stok_aman' => $stokAmanVariasi]
+                                );
+                                $variasiCache[$variasiCacheKey] = $variasi;
+                                $totalVariasi++;
+                            } else {
+                                $variasi = $variasiCache[$variasiCacheKey];
+                            }
 
-                            $variasi->harian()->updateOrCreate(
-                                ['tanggal' => $tanggal],
-                                [
-                                    'stok_awal' => $stokAwalVariasi,
-                                    'input' => $inputVariasi,
-                                    'out' => $outVariasi,
-                                ]
-                            );
-                            $totalVariasi++;
+                            $batchHarianVariasi[] = [
+                                'variasi_gudang_id' => $variasi->id,
+                                'tanggal' => $tanggal,
+                                'stok_awal' => $stokAwalVariasi,
+                                'input' => $inputVariasi,
+                                'out' => $outVariasi,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ];
                         }
                     }
+                }
+
+                // === UPSERT SEKALIGUS, bukan satu-satu ===
+                if (! empty($batchHarianBarang)) {
+                    \App\Models\StokHarianGudang::upsert(
+                        $batchHarianBarang,
+                        ['barang_gudang_id', 'tanggal'],
+                        ['rak', 'input', 'um_titip_pabrik', 'stok_mentah_umma', 'updated_at']
+                    );
+                }
+
+                if (! empty($batchAlokasi)) {
+                    StokAlokasiKhususHarian::upsert(
+                        $batchAlokasi,
+                        ['barang_gudang_id', 'tanggal', 'kode_alokasi'],
+                        ['kuantitas', 'updated_at']
+                    );
+                }
+
+                if (! empty($batchHarianVariasi)) {
+                    \App\Models\StokVariasiHarian::upsert(
+                        $batchHarianVariasi,
+                        ['variasi_gudang_id', 'tanggal'],
+                        ['stok_awal', 'input', 'out', 'updated_at']
+                    );
                 }
             } catch (\Throwable $e) {
                 $sheetGagal[] = "{$namaSheet} (error: {$e->getMessage()})";
@@ -242,7 +291,7 @@ class ImportRiwayatLengkap extends Command
         $progressBar->finish();
         $this->newLine(2);
 
-        $this->info("Selesai. Total barang unik: {$totalBarang}, snapshot variasi: {$totalVariasi}, alokasi khusus: {$totalAlokasi}.");
+        $this->info("Selesai. Total barang unik: {$totalBarang}, snapshot harian barang: {$totalHarianBarang}, variasi unik: {$totalVariasi}, alokasi khusus: {$totalAlokasi}.");
 
         if (! empty($sheetGagal)) {
             $this->warn('Sheet yang GAGAL diproses (' . count($sheetGagal) . '):');
