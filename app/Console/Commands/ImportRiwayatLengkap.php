@@ -188,7 +188,8 @@ class ImportRiwayatLengkap extends Command
                         $barang = $barangCache[$cacheKey];
                     }
 
-                    $batchHarianBarang[] = [
+                    $keyHarianBarang = $barang->id . '|' . $tanggal;
+                    $batchHarianBarang[$keyHarianBarang] = [
                         'barang_gudang_id' => $barang->id,
                         'tanggal' => $tanggal,
                         'rak' => $rak,
@@ -206,7 +207,8 @@ class ImportRiwayatLengkap extends Command
                             continue;
                         }
 
-                        $batchAlokasi[] = [
+                        $keyAlokasi = $barang->id . '|' . $tanggal . '|' . $kodeAlokasi;
+                        $batchAlokasi[$keyAlokasi] = [
                             'barang_gudang_id' => $barang->id,
                             'tanggal' => $tanggal,
                             'kode_alokasi' => $kodeAlokasi,
@@ -244,7 +246,8 @@ class ImportRiwayatLengkap extends Command
                                 $variasi = $variasiCache[$variasiCacheKey];
                             }
 
-                            $batchHarianVariasi[] = [
+                            $keyHarianVariasi = $variasi->id . '|' . $tanggal;
+                            $batchHarianVariasi[$keyHarianVariasi] = [
                                 'variasi_gudang_id' => $variasi->id,
                                 'tanggal' => $tanggal,
                                 'stok_awal' => $stokAwalVariasi,
@@ -260,7 +263,7 @@ class ImportRiwayatLengkap extends Command
                 // === UPSERT SEKALIGUS, bukan satu-satu ===
                 if (! empty($batchHarianBarang)) {
                     \App\Models\StokHarianGudang::upsert(
-                        $batchHarianBarang,
+                        array_values($batchHarianBarang),
                         ['barang_gudang_id', 'tanggal'],
                         ['rak', 'input', 'um_titip_pabrik', 'stok_mentah_umma', 'updated_at']
                     );
@@ -268,7 +271,7 @@ class ImportRiwayatLengkap extends Command
 
                 if (! empty($batchAlokasi)) {
                     StokAlokasiKhususHarian::upsert(
-                        $batchAlokasi,
+                        array_values($batchAlokasi),
                         ['barang_gudang_id', 'tanggal', 'kode_alokasi'],
                         ['kuantitas', 'updated_at']
                     );
@@ -276,7 +279,7 @@ class ImportRiwayatLengkap extends Command
 
                 if (! empty($batchHarianVariasi)) {
                     \App\Models\StokVariasiHarian::upsert(
-                        $batchHarianVariasi,
+                        array_values($batchHarianVariasi),
                         ['variasi_gudang_id', 'tanggal'],
                         ['stok_awal', 'input', 'out', 'updated_at']
                     );
