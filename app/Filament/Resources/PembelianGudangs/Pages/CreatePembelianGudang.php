@@ -88,7 +88,17 @@ class CreatePembelianGudang extends CreateRecord
 
     protected function handleRecordCreation(array $data): \Illuminate\Database\Eloquent\Model
     {
-        $data['items'] = $this->previewItems;
+        $items = $this->previewItems;
+
+        if (empty($items) && ! empty($data['file_invoice'])) {
+            $import = new InvoiceGudangImport();
+
+            Excel::import($import, $data['file_invoice'], 'local');
+
+            $items = $import->getItems();
+        }
+
+        $data['items'] = $items;
 
         return app(\App\Services\PembelianGudangService::class)
             ->simpanPembelian($data);
