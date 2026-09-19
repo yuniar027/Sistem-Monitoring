@@ -4,10 +4,12 @@ namespace App\Filament\Resources\PembelianGudangs\Pages;
 
 use App\Filament\Resources\PembelianGudangs\PembelianGudangResource;
 use App\Imports\InvoiceGudangImport;
+use App\Models\StokBarangGudang;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Maatwebsite\Excel\Facades\Excel;
+use RuntimeException;
 
 class CreatePembelianGudang extends CreateRecord
 {
@@ -42,7 +44,7 @@ class CreatePembelianGudang extends CreateRecord
             if (empty($this->previewItems)) {
                 Notification::make()
                     ->title('Tidak ada detail barang ditemukan.')
-                    ->body('Pastikan format Excel memiliki kolom Item, Qty, Unit Price, dan Amount.')
+                    ->body('Pastikan format Excel memiliki kolom KODE, BARANG, JUMLAH, HARGA, dan SUBTOTAL.')
                     ->warning()
                     ->send();
 
@@ -90,15 +92,74 @@ class CreatePembelianGudang extends CreateRecord
     {
         $items = $this->previewItems;
 
+        /*
+         * Kalau preview belum dijalankan atau state preview hilang,
+         * baca ulang file invoice sebelum menyimpan.
+         */
         if (empty($items) && ! empty($data['file_invoice'])) {
             $import = new InvoiceGudangImport();
 
-            Excel::import($import, $data['file_invoice'], 'local');
+            Excel::import(
+                $import,
+                $data['file_invoice'],
+                'local'
+            );
 
             $items = $import->getItems();
         }
 
-        $data['items'] = $items;
+        if (empty($items)) {
+            throw new RuntimeException(
+                'Tidak ada barang yang berhasil dibaca dari invoice.'
+            );
+        }
+
+        $detail = [];
+        $barangTidakDitemukan = [];
+
+        foreach ($items as $item) {
+            $kode = trim((string) ($item['kode'] ?? ''));
+
+            if ($kode === '') {
+                $barangTidakDitemukan[] = '(kode kosong)';
+                continue;
+            }
+
+            $barang = StokBarangGudang::query()
+                ->where('kode_barang', $kode)
+                ->where(
+                    'kategori',
+                    StokBarangGudang::KATEGORI_ORIGAMI
+                )
+                ->first();
+
+            if (! $barang) {
+                $barangTidakDitemukan[] = $kode;
+                continue;
+            }
+
+            $detail[] = [
+                'barang_gudang_id' => $barang->id,
+                'kuantitas' => (float) ($item['qty'] ?? 0),
+                'harga_invoice' => (float) ($item['unit_price'] ?? 0),
+                'catatan' => null,
+            ];
+        }
+
+        if (! empty($barangTidakDitemukan)) {
+            throw new RuntimeException(
+                'Barang berikut tidak ditemukan di Master Barang Gudang Origami: '
+                . implode(', ', $barangTidakDitemukan)
+            );
+        }
+
+        if (empty($detail)) {
+            throw new RuntimeException(
+                'Tidak ada barang Origami yang valid untuk disimpan.'
+            );
+        }
+
+        $data['detail'] = $detail;
 
         return app(\App\Services\PembelianGudangService::class)
             ->simpanPembelian($data);
