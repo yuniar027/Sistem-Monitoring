@@ -4,45 +4,50 @@ namespace App\Imports;
 
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class InvoiceGudangImport implements ToCollection, WithHeadingRow
+class InvoiceGudangImport implements ToCollection
 {
-    /**
-     * Data hasil pembacaan Excel.
-     *
-     * @var array<int, array<string, mixed>>
-     */
     public array $items = [];
 
     public function collection(Collection $rows): void
     {
-        foreach ($rows as $row) {
-            $item = trim((string) ($row['item'] ?? ''));
+        $headerRowIndex = $this->findHeaderRow($rows);
 
-            // Abaikan baris kosong.
-            if ($item === '') {
+        if ($headerRowIndex === null) {
+            return;
+        }
+
+        foreach ($rows->slice($headerRowIndex + 1) as $row) {
+            $values = array_values($row->toArray());
+
+            $kode = trim((string) ($values[1] ?? ''));
+            $item = trim((string) ($values[2] ?? ''));
+
+            if ($item === '' && $kode === '') {
                 continue;
             }
 
-            // Abaikan baris TOTAL.
             if (strtoupper($item) === 'TOTAL') {
                 continue;
             }
 
-            $qty = $this->parseNumber($row['qty'] ?? null);
-            $unitPrice = $this->parseNumber($row['unit_price'] ?? null);
-            $amount = $this->parseNumber($row['amount'] ?? null);
+            $qty = $this->parseNumber($values[3] ?? null);
+            $satuan = trim((string) ($values[5] ?? ''));
+            $unitPrice = $this->parseNumber($values[7] ?? null);
+            $discount = $this->parseNumber($values[9] ?? null);
+            $amount = $this->parseNumber($values[10] ?? null);
 
-            // Abaikan baris yang bukan detail barang.
             if ($qty === null && $unitPrice === null && $amount === null) {
                 continue;
             }
 
             $this->items[] = [
+                'kode' => $kode !== '' ? $kode : null,
                 'item' => $item,
                 'qty' => $qty,
+                'unit' => $satuan !== '' ? $satuan : null,
                 'unit_price' => $unitPrice,
+                'discount' => $discount,
                 'amount' => $amount,
             ];
         }
@@ -53,9 +58,34 @@ class InvoiceGudangImport implements ToCollection, WithHeadingRow
         return $this->items;
     }
 
-    public function headingRow(): int
+    private function findHeaderRow(Collection $rows): ?int
     {
-        return 1;
+        foreach ($rows as $index => $row) {
+            $values = array_map(
+                fn ($value) => strtoupper(trim((string) $value)),
+                array_values($row->toArray())
+            );
+
+            $hasNo = in_array('NO', $values, true);
+            $hasKode = in_array('KODE', $values, true);
+            $hasBarang = in_array('BARANG', $values, true);
+            $hasJumlah = in_array('JUMLAH', $values, true);
+            $hasHarga = in_array('HARGA', $values, true);
+            $hasSubtotal = in_array('SUBTOTAL', $values, true);
+
+            if (
+                $hasNo &&
+                $hasKode &&
+                $hasBarang &&
+                $hasJumlah &&
+                $hasHarga &&
+                $hasSubtotal
+            ) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     private function parseNumber(mixed $value): ?float
@@ -74,14 +104,18 @@ class InvoiceGudangImport implements ToCollection, WithHeadingRow
             return null;
         }
 
-        // Hilangkan simbol mata uang dan spasi.
         $value = preg_replace('/[^\d,.\-]/', '', $value);
 
-        if ($value === '') {
+        if ($value === '' || $value === '-') {
             return null;
         }
 
-        // Format Indonesia: 42.000,50
+        /*
+         * Format Indonesia:
+         * 74.000      -> 74000
+         * 1.508.000   -> 1508000
+         * 2,5         -> 2.5
+         */
         if (str_contains($value, ',') && str_contains($value, '.')) {
             $lastComma = strrpos($value, ',');
             $lastDot = strrpos($value, '.');
@@ -90,15 +124,29 @@ class InvoiceGudangImport implements ToCollection, WithHeadingRow
                 $value = str_replace('.', '', $value);
                 $value = str_replace(',', '.', $value);
             } else {
-                // Format internasional: 42,000.50
                 $value = str_replace(',', '', $value);
             }
         } elseif (str_contains($value, ',')) {
-            // Untuk harga invoice seperti 42,000 → 42000.
-            $value = str_replace(',', '', $value);
-        } elseif (substr_count($value, '.') > 1) {
-            // Untuk format seperti 1.250.000 → 1250000.
-            $value = str_replace('.', '', $value);
+            $parts = explode(',', $value);
+
+            if (
+                count($parts) === 2 &&
+                strlen($parts[1]) <= 2
+            ) {
+                $value = str_replace('.', '', $value);
+                $value = str_replace(',', '.', $value);
+            } else {
+                $value = str_replace(',', '', $value);
+            }
+        } elseif (str_contains($value, '.')) {
+            $parts = explode('.', $value);
+
+            if (
+                count($parts) > 2 ||
+                (count($parts) === 2 && strlen($parts[1]) === 3)
+            ) {
+                $value = str_replace('.', '', $value);
+            }
         }
 
         return is_numeric($value) ? (float) $value : null;
