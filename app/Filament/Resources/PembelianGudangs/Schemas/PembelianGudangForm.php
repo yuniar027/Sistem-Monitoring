@@ -6,6 +6,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Placeholder;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
@@ -51,6 +52,25 @@ class PembelianGudangForm
                             ->columnSpanFull(),
                     ])
                     ->columns(3),
+
+                Section::make('Preview Invoice')
+                    ->schema([
+                        Placeholder::make('preview_invoice')
+                            ->hiddenLabel()
+                            ->content(function ($livewire) {
+                                $items = $livewire->previewItems ?? [];
+
+                                if (empty($items)) {
+                                    return 'Belum ada invoice yang di-import. Klik "Import & Preview" setelah memilih file.';
+                                }
+
+                                return view(
+                                    'filament.pembelian-gudang.preview-invoice',
+                                    ['items' => $items]
+                                );
+                            }),
+                    ])
+                    ->columnSpanFull(),
             ]);
     }
 }

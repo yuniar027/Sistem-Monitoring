@@ -32,11 +32,10 @@ class InvoiceGudangImport implements ToCollection
             }
 
             $qty = $this->parseNumber($values[3] ?? null);
-            $satuan = trim((string) ($values[5] ?? ''));
-            $unitPrice = $this->parseNumber($values[7] ?? null);
-            $discount = $this->parseNumber($values[9] ?? null);
-            $amount = $this->parseNumber($values[10] ?? null);
-
+            $satuan = trim((string) ($values[4] ?? ''));
+            $unitPrice = $this->parseNumber($values[5] ?? null);
+            $discount = $this->parseNumber($values[6] ?? null);
+            $amount = $this->parseNumber($values[7] ?? null);
             if ($qty === null && $unitPrice === null && $amount === null) {
                 continue;
             }
