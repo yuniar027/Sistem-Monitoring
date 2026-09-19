@@ -20,6 +20,8 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use App\Filament\Resources\HargaAcuanOrigamis\HargaAcuanOrigamiResource;
+use App\Filament\Resources\PembelianGudangs\PembelianGudangResource;
 
 class GudangPanelProvider extends PanelProvider
 {
@@ -37,7 +39,10 @@ class GudangPanelProvider extends PanelProvider
             ->resources([
                 StokBarangGudangResource::class,
                 StokVariasiHarianResource::class,
+                HargaAcuanOrigamiResource::class,
+                PembelianGudangResource::class,
             ])
+        
             ->pages([
                 GudangBeranda::class,
                 InputStokHarianGabungan::class,
