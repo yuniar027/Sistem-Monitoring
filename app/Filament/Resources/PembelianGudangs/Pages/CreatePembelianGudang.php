@@ -88,6 +88,8 @@ class CreatePembelianGudang extends CreateRecord
 
     protected function handleRecordCreation(array $data): \Illuminate\Database\Eloquent\Model
     {
+        $data['items'] = $this->previewItems;
+
         return app(\App\Services\PembelianGudangService::class)
             ->simpanPembelian($data);
     }
