@@ -26,4 +26,9 @@ class StokMasuk extends Model
     {
         return $this->belongsTo(ProdukMaster::class, 'sku', 'sku');
     }
+
+    public function perbandinganHarga()
+    {
+        return $this->hasOne(PerbandinganHargaStokMasuk::class, 'stok_masuk_id');
+    }
 }

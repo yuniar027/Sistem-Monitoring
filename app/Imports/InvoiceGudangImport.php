@@ -11,34 +11,24 @@ class InvoiceGudangImport implements ToCollection
 
     public function collection(Collection $rows): void
     {
-        $headerRowIndex = $this->findHeaderRow($rows);
+        $headerMap = $this->findHeaderMap($rows);
 
-        if ($headerRowIndex === null) {
+        if ($headerMap === null) {
             return;
         }
 
-        foreach ($rows->slice($headerRowIndex + 1) as $row) {
+        foreach ($rows->slice($headerMap['row_index'] + 1) as $row) {
             $values = array_values($row->toArray());
 
-            /*
-             * Struktur invoice Origami:
-             *
-             * 0  = NO
-             * 1  = KODE
-             * 2  = BARANG
-             * 3  = JUMLAH
-             * 4  = kolom kosong
-             * 5  = SATUAN
-             * 6  = kolom kosong
-             * 7  = HARGA
-             * 8  = kolom kosong
-             * 9  = DISKON
-             * 10 = SUBTOTAL
-             * 11 = kolom kosong
-             */
+            $kode = trim((string) $this->valueFromColumn(
+                $values,
+                $headerMap['columns']['kode'] ?? null
+            ));
 
-            $kode = trim((string) ($values[1] ?? ''));
-            $item = trim((string) ($values[2] ?? ''));
+            $item = trim((string) $this->valueFromColumn(
+                $values,
+                $headerMap['columns']['barang'] ?? null
+            ));
 
             /*
              * Lewati baris kosong.
@@ -54,15 +44,45 @@ class InvoiceGudangImport implements ToCollection
                 continue;
             }
 
-            $qty = $this->parseNumber($values[3] ?? null);
+            /*
+             * Ambil nilai berdasarkan posisi header yang ditemukan,
+             * bukan berdasarkan index kolom yang tetap.
+             *
+             * Ini menangani invoice yang memiliki kolom kosong
+             * di antara JUMLAH, SATUAN, HARGA, DISKON, dan SUBTOTAL.
+             */
+            $qty = $this->parseNumber(
+                $this->valueFromColumn(
+                    $values,
+                    $headerMap['columns']['jumlah'] ?? null
+                )
+            );
 
-            $satuan = trim((string) ($values[5] ?? ''));
+            $satuan = trim((string) $this->valueFromColumn(
+                $values,
+                $headerMap['columns']['satuan'] ?? null
+            ));
 
-            $unitPrice = $this->parseNumber($values[7] ?? null);
+            $unitPrice = $this->parseNumber(
+                $this->valueFromColumn(
+                    $values,
+                    $headerMap['columns']['harga'] ?? null
+                )
+            );
 
-            $discount = $this->parseNumber($values[9] ?? null);
+            $discount = $this->parseNumber(
+                $this->valueFromColumn(
+                    $values,
+                    $headerMap['columns']['diskon'] ?? null
+                )
+            );
 
-            $amount = $this->parseNumber($values[10] ?? null);
+            $amount = $this->parseNumber(
+                $this->valueFromColumn(
+                    $values,
+                    $headerMap['columns']['subtotal'] ?? null
+                )
+            );
 
             /*
              * Kalau baris tidak memiliki data angka sama sekali,
@@ -94,36 +114,95 @@ class InvoiceGudangImport implements ToCollection
     }
 
     /**
-     * Cari baris header invoice.
+     * Cari baris header dan posisi setiap kolom berdasarkan nama header.
+     *
+     * Hasil:
+     * [
+     *     'row_index' => 7,
+     *     'columns' => [
+     *         'kode' => 1,
+     *         'barang' => 2,
+     *         'jumlah' => 4,
+     *         'satuan' => 5,
+     *         'harga' => 7,
+     *         'diskon' => 9,
+     *         'subtotal' => 10,
+     *     ],
+     * ]
      */
-    private function findHeaderRow(Collection $rows): ?int
+    private function findHeaderMap(Collection $rows): ?array
     {
         foreach ($rows as $index => $row) {
-            $values = array_map(
-                fn ($value) => strtoupper(trim((string) $value)),
-                array_values($row->toArray())
-            );
+            $values = array_values($row->toArray());
+            $columns = [];
 
-            $hasNo = in_array('NO', $values, true);
-            $hasKode = in_array('KODE', $values, true);
-            $hasBarang = in_array('BARANG', $values, true);
-            $hasJumlah = in_array('JUMLAH', $values, true);
-            $hasHarga = in_array('HARGA', $values, true);
-            $hasSubtotal = in_array('SUBTOTAL', $values, true);
+            foreach ($values as $columnIndex => $value) {
+                $header = $this->normalizeHeader($value);
 
-            if (
-                $hasNo &&
-                $hasKode &&
-                $hasBarang &&
-                $hasJumlah &&
-                $hasHarga &&
-                $hasSubtotal
-            ) {
-                return $index;
+                if ($header === '') {
+                    continue;
+                }
+
+                $columnKey = match ($header) {
+                    'NO' => 'no',
+                    'KODE' => 'kode',
+                    'BARANG' => 'barang',
+                    'JUMLAH' => 'jumlah',
+                    'SATUAN' => 'satuan',
+                    'HARGA' => 'harga',
+                    'DISKON' => 'diskon',
+                    'SUBTOTAL' => 'subtotal',
+                    default => null,
+                };
+
+                if ($columnKey !== null) {
+                    $columns[$columnKey] = $columnIndex;
+                }
+            }
+
+            $requiredColumns = [
+                'kode',
+                'barang',
+                'jumlah',
+                'harga',
+                'subtotal',
+            ];
+
+            $hasRequiredColumns = collect($requiredColumns)
+                ->every(fn (string $column) => array_key_exists($column, $columns));
+
+            if ($hasRequiredColumns) {
+                return [
+                    'row_index' => $index,
+                    'columns' => $columns,
+                ];
             }
         }
 
         return null;
+    }
+
+    /**
+     * Normalisasi header agar tahan terhadap spasi tambahan
+     * dan perbedaan huruf besar/kecil.
+     */
+    private function normalizeHeader(mixed $value): string
+    {
+        return strtoupper(
+            preg_replace('/\s+/', ' ', trim((string) $value))
+        );
+    }
+
+    /**
+     * Ambil nilai dari posisi kolom yang ditemukan.
+     */
+    private function valueFromColumn(array $values, ?int $columnIndex): mixed
+    {
+        if ($columnIndex === null) {
+            return null;
+        }
+
+        return $values[$columnIndex] ?? null;
     }
 
     /**
@@ -179,17 +258,9 @@ class InvoiceGudangImport implements ToCollection
             $lastDot = strrpos($value, '.');
 
             if ($lastComma > $lastDot) {
-                /*
-                 * Contoh:
-                 * 1.508.000,50
-                 */
                 $value = str_replace('.', '', $value);
                 $value = str_replace(',', '.', $value);
             } else {
-                /*
-                 * Contoh:
-                 * 1,508,000.50
-                 */
                 $value = str_replace(',', '', $value);
             }
         } elseif (str_contains($value, ',')) {

@@ -11,7 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -29,6 +29,14 @@ class StokVariasiHarianResource extends Resource
     {
         return \Illuminate\Support\Facades\Auth::guard('gudang')->user()?->isPabrik() ?? false;
     }
+
+    /**
+     * Urutan prioritas motif/warna — dipakai baik untuk menentukan label
+     * kelompok (motifGroup) maupun urutan SQL (motifOrderCase), supaya
+     * kedua logic itu SELALU konsisten satu sama lain (satu sumber,
+     * bukan didefinisikan dua kali).
+     */
+    private const MOTIF_KEYWORDS = ['COKLAT', 'ABU', 'PINK', 'NAVY', 'SAGE', 'IKAN', 'KREM', 'CREM', 'PEACH', 'GOLD'];
 
     public static function form(Schema $schema): Schema
     {
@@ -56,17 +64,77 @@ class StokVariasiHarianResource extends Resource
         ]);
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->with(['variasiGudang.barangGudang']);
+    }
+
+    private static function motifGroup(StokVariasiHarian $record): string
+    {
+        $barang = $record->variasiGudang?->barangGudang;
+        $nama = strtoupper((string) $barang?->nama_barang);
+        $motif = collect(self::MOTIF_KEYWORDS)
+            ->first(fn (string $kata): bool => str_contains($nama, $kata)) ?? 'LAINNYA';
+        $kategori = StokBarangGudangResource::kategoriOptions()[$barang?->kategori] ?? ($barang?->kategori ?? 'Tanpa Kategori');
+
+        return "{$kategori} {$motif}";
+    }
+
+    /**
+     * CASE SQL yang meniru persis urutan prioritas motifGroup() di atas
+     * (keyword pertama yang cocok menang), supaya baris-baris dengan
+     * label kelompok yang sama benar-benar bersebelahan di hasil query —
+     * bukan cuma dikelompokkan tampilannya doang. Filament butuh data
+     * yang sudah terurut oleh kunci grup, kalau tidak baris "Origami
+     * Coklat" bisa pecah jadi beberapa blok terpisah (ini bug yang lagi
+     * diperbaiki).
+     */
+    private static function motifOrderCase(): string
+    {
+        $whens = collect(self::MOTIF_KEYWORDS)
+            ->map(fn (string $kata, int $i): string => "WHEN UPPER(stok_barang_gudang.nama_barang) LIKE '%{$kata}%' THEN " . ($i + 1))
+            ->implode(' ');
+
+        $fallback = count(self::MOTIF_KEYWORDS) + 1;
+
+        return "CASE {$whens} ELSE {$fallback} END";
+    }
+
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultGroup(
+                Group::make('motif_group')
+                    ->label('Kelompok Motif/Warna')
+                    ->collapsible()
+                    ->titlePrefixedWithLabel(false)
+                    ->orderQueryUsing(
+                        function (Builder $query, string $direction): Builder {
+                            $direction = $direction === 'desc' ? 'desc' : 'asc';
+
+                            return $query
+                                ->join('stok_variasi_gudang', 'stok_variasi_gudang.id', '=', 'stok_variasi_harian.variasi_gudang_id')
+                                ->join('stok_barang_gudang', 'stok_barang_gudang.id', '=', 'stok_variasi_gudang.barang_gudang_id')
+                                // Wajib: tanpa select eksplisit ini, kolom `id` dari 3 tabel yang
+                                // di-join bakal tabrakan dan merusak primary key hasil hydrate model.
+                                ->select('stok_variasi_harian.*')
+                                ->orderBy('stok_barang_gudang.kategori', $direction)
+                                ->orderByRaw(static::motifOrderCase() . " {$direction}")
+                                ->orderBy('stok_variasi_gudang.kode_variasi')
+                                ->orderBy('stok_barang_gudang.nama_barang');
+                        }
+                    )
+                    ->getKeyFromRecordUsing(
+                        fn (StokVariasiHarian $record): string => static::motifGroup($record)
+                    )
+                    ->getTitleFromRecordUsing(
+                        fn (StokVariasiHarian $record): string => static::motifGroup($record)
+                    )
+            )
+            ->groupingSettingsHidden()
             ->columns([
-                TextColumn::make('variasiGudang.barangGudang.kategori')
-                    ->label('Kategori')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state): string => StokBarangGudangResource::kategoriOptions()[$state] ?? $state)
-                    ->color(fn (string $state): string => $state === \App\Models\StokBarangGudang::KATEGORI_ORIGAMI ? 'warning' : 'info'),
-                TextColumn::make('variasiGudang.barangGudang.kode_barang')->label('Kode Barang')->sortable(),
-                TextColumn::make('variasiGudang.barangGudang.nama_barang')->label('Nama Barang')->searchable()->sortable(),
+                TextColumn::make('variasiGudang.barangGudang.nama_dasar')
+                    ->label('Nama Barang'),
                 TextColumn::make('variasiGudang.kode_variasi')->label('Kode Variasi')->sortable(),
                 TextColumn::make('tanggal')->date()->sortable(),
                 TextColumn::make('stok_awal')->label('Stok Awal'),

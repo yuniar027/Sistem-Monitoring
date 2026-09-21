@@ -132,53 +132,27 @@ class ImportRiwayatLengkap extends Command
                     $idxStokAmanBarang = 0;
                 }
 
-            $idxNama = array_search('NAMA', $header);
-            $idxRak = array_search('RAK', $header);
-            $idxInputBarang = array_search('INPUT', $header);
-            $idxStokSiap = array_search('STOK SIAP', $header);
-            $idxStokAkhir = array_search('STOK AKHIR', $header);
-            $idxVariasi = array_search('VARIASI', $header);
-            $idxTitipPabrik = array_search('UM TITIP PABRIK', $header);
-            $idxStokMentahUmma = array_search('STOK MENTAH UMMA', $header);
+                $idxNama = array_search('NAMA', $header);
+                $idxRak = array_search('RAK', $header);
+                $idxInputBarang = array_search('INPUT', $header);
+                $idxStokSiap = array_search('STOK SIAP', $header);
+                $idxStokAkhir = array_search('STOK AKHIR', $header);
+                $idxVariasi = array_search('VARIASI', $header);
+                $idxTitipPabrik = array_search('UM TITIP PABRIK', $header);
+                $idxStokMentahUmma = array_search('STOK MENTAH UMMA', $header);
 
-            // Format lama:
-            // A = STOK K2 (stok aman)
-            // B = NAMA
-            // C = STOK K2 (rak)
-            // D = INPUT
-            // E = STOK SIAP
-            // F = KELUAR 1
-            // G = STOK K1
-            // H = KELUAR 2
-            // I = STOK K2
-            // O = S M UMMA
-            $formatLegacy = (
-                $idxNama === 1
-                && $idxStokSiap === 4
-                && $idxStokAkhir === false
-                && isset($rows[0][2])
-                && strtoupper(trim((string) $rows[0][2])) === 'STOK K2'
-            );
+                if ($idxNama === false || $idxStokSiap === false || $idxStokAkhir === false) {
+                    $sheetGagal[] = "{$namaSheet} (struktur tidak dikenali)";
+                    $progressBar->advance();
+                    continue;
+                }
 
-            // Kalau bukan format baru dan bukan format lama, tetap dianggap gagal.
-            if (
-                ! $formatLegacy
-                && ($idxNama === false || $idxStokSiap === false || $idxStokAkhir === false)
-            ) {
-                $sheetGagal[] = "{$namaSheet} (struktur tidak dikenali)";
-                $progressBar->advance();
-                continue;
-            }
-
-            $kolomK = [];
-
-            if (! $formatLegacy) {
+                $kolomK = [];
                 for ($i = $idxStokSiap + 1; $i < $idxStokAkhir; $i++) {
                     if (! empty(trim((string) ($rows[0][$i] ?? '')))) {
                         $kolomK[$i] = trim((string) $rows[0][$i]);
                     }
                 }
-            }
 
                 // kumpulkan dulu semua baris di sheet ini, upsert 1x di akhir
                 $batchHarianBarang = [];
@@ -193,26 +167,11 @@ class ImportRiwayatLengkap extends Command
                         continue;
                     }
 
-                    if ($formatLegacy) {
-                        // Format lama:
-                        // A = STOK K2 (stok aman)
-                        // B = NAMA
-                        // C = STOK K2 (rak)
-                        // D = INPUT
-                        // O = S M UMMA
-                        $stokAmanBarang = $this->parseNumeric($row[0] ?? 0);
-                        $rak = $this->parseNumeric($row[2] ?? 0);
-                        $inputBarang = $this->parseNumeric($row[3] ?? 0);
-                        $titipPabrik = null;
-                        $stokMentahUmma = $this->parseNumeric($row[14] ?? 0);
-                    } else {
-                        // Format baru
-                        $stokAmanBarang = (float) ($row[$idxStokAmanBarang] ?? 0);
-                        $rak = (float) ($row[$idxRak] ?? 0);
-                        $inputBarang = (float) ($row[$idxInputBarang] ?? 0);
-                        $titipPabrik = $idxTitipPabrik !== false ? $row[$idxTitipPabrik] ?? null : null;
-                        $stokMentahUmma = $idxStokMentahUmma !== false ? $row[$idxStokMentahUmma] ?? null : null;
-                    }
+                    $stokAmanBarang = (float) ($row[$idxStokAmanBarang] ?? 0);
+                    $rak = (float) ($row[$idxRak] ?? 0);
+                    $inputBarang = (float) ($row[$idxInputBarang] ?? 0);
+                    $titipPabrik = $idxTitipPabrik !== false ? $row[$idxTitipPabrik] ?? null : null;
+                    $stokMentahUmma = $idxStokMentahUmma !== false ? $row[$idxStokMentahUmma] ?? null : null;
 
                     // barang: masih firstOrCreate satu-satu, TAPI di-cache jadi
                     // total query-nya cuma sebanyak barang UNIK (ratusan),
@@ -444,23 +403,5 @@ class ImportRiwayatLengkap extends Command
         }
 
         return ['hari' => $hari, 'bulan' => $bulan];
-    }
-
-    private function parseNumeric(mixed $value): float
-    {
-        if ($value === null) {
-            return 0.0;
-        }
-
-        $value = trim((string) $value);
-
-        if ($value === '' || $value === '-') {
-            return 0.0;
-        }
-
-        $value = str_replace(',', '.', $value);
-        $value = preg_replace('/[^0-9.\-]/', '', $value);
-
-        return is_numeric($value) ? (float) $value : 0.0;
     }
 }

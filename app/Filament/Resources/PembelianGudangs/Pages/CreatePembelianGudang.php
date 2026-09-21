@@ -44,7 +44,9 @@ class CreatePembelianGudang extends CreateRecord
             if (empty($this->previewItems)) {
                 Notification::make()
                     ->title('Tidak ada detail barang ditemukan.')
-                    ->body('Pastikan format Excel memiliki kolom KODE, BARANG, JUMLAH, HARGA, dan SUBTOTAL.')
+                    ->body(
+                        'Pastikan format Excel memiliki kolom KODE, BARANG, JUMLAH, HARGA, dan SUBTOTAL.'
+                    )
                     ->warning()
                     ->send();
 
@@ -88,8 +90,9 @@ class CreatePembelianGudang extends CreateRecord
         ];
     }
 
-    protected function handleRecordCreation(array $data): \Illuminate\Database\Eloquent\Model
-    {
+    protected function handleRecordCreation(
+        array $data
+    ): \Illuminate\Database\Eloquent\Model {
         $items = $this->previewItems;
 
         /*
@@ -115,47 +118,38 @@ class CreatePembelianGudang extends CreateRecord
         }
 
         $detail = [];
-        $barangTidakDitemukan = [];
 
         foreach ($items as $item) {
             $kode = trim((string) ($item['kode'] ?? ''));
+            $nama = trim((string) ($item['item'] ?? ''));
 
-            if ($kode === '') {
-                $barangTidakDitemukan[] = '(kode kosong)';
-                continue;
-            }
+            $barang = null;
 
-            $barang = StokBarangGudang::query()
-                ->where('kode_barang', $kode)
-                ->where(
-                    'kategori',
-                    StokBarangGudang::KATEGORI_ORIGAMI
-                )
-                ->first();
-
-            if (! $barang) {
-                $barangTidakDitemukan[] = $kode;
-                continue;
+            if ($kode !== '') {
+                $barang = StokBarangGudang::query()
+                    ->where('kode_barang', $kode)
+                    ->where(
+                        'kategori',
+                        StokBarangGudang::KATEGORI_ORIGAMI
+                    )
+                    ->first();
             }
 
             $detail[] = [
-                'barang_gudang_id' => $barang->id,
+                'barang_gudang_id' => $barang?->id,
+                'kode_barang_invoice' => $kode !== '' ? $kode : null,
+                'nama_barang_invoice' => $nama !== '' ? $nama : null,
                 'kuantitas' => (float) ($item['qty'] ?? 0),
                 'harga_invoice' => (float) ($item['unit_price'] ?? 0),
-                'catatan' => null,
+                'catatan' => $barang
+                    ? null
+                    : 'Barang belum terpetakan ke Master Barang Gudang.',
             ];
-        }
-
-        if (! empty($barangTidakDitemukan)) {
-            throw new RuntimeException(
-                'Barang berikut tidak ditemukan di Master Barang Gudang Origami: '
-                . implode(', ', $barangTidakDitemukan)
-            );
         }
 
         if (empty($detail)) {
             throw new RuntimeException(
-                'Tidak ada barang Origami yang valid untuk disimpan.'
+                'Tidak ada detail invoice yang valid untuk disimpan.'
             );
         }
 

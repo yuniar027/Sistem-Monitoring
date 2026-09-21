@@ -15,7 +15,6 @@ class PembelianGudangService
     {
         return DB::transaction(function () use ($data) {
             $tanggal = Carbon::parse($data['tanggal']);
-
             $detailInput = $data['detail'] ?? [];
 
             if (empty($detailInput)) {
@@ -32,15 +31,46 @@ class PembelianGudangService
             ]);
 
             foreach ($detailInput as $detail) {
-                $barang = StokBarangGudang::query()
-                    ->whereKey($detail['barang_gudang_id'])
-                    ->where('kategori', StokBarangGudang::KATEGORI_ORIGAMI)
-                    ->first();
+                $barang = null;
 
+                if (! empty($detail['barang_gudang_id'])) {
+                    $barang = StokBarangGudang::query()
+                        ->whereKey($detail['barang_gudang_id'])
+                        ->where(
+                            'kategori',
+                            StokBarangGudang::KATEGORI_ORIGAMI
+                        )
+                        ->first();
+                }
+
+                $kuantitas = (float) ($detail['kuantitas'] ?? 0);
+                $hargaInvoice = (float) ($detail['harga_invoice'] ?? 0);
+                $nilaiInvoice = $kuantitas * $hargaInvoice;
+
+                /*
+                 * Barang belum ditemukan di Master Barang Gudang.
+                 * Tetap simpan data invoice untuk proses review.
+                 */
                 if (! $barang) {
-                    throw new RuntimeException(
-                        'Barang yang dipilih bukan barang Origami atau tidak ditemukan.'
-                    );
+                    $pembelian->detail()->create([
+                        'barang_gudang_id' => null,
+                        'kode_barang_invoice' => $detail['kode_barang_invoice'] ?? null,
+                        'nama_barang_invoice' => $detail['nama_barang_invoice'] ?? null,
+                        'status_pemetaan' => 'perlu_review',
+                        'harga_acuan_id' => null,
+                        'kuantitas' => $kuantitas,
+                        'harga_invoice' => $hargaInvoice,
+                        'harga_acuan_snapshot' => null,
+                        'nilai_acuan' => null,
+                        'nilai_invoice' => $nilaiInvoice,
+                        'selisih_nominal' => null,
+                        'persen_selisih' => null,
+                        'kategori_perbandingan' => null,
+                        'status_approval' => 'pending',
+                        'catatan' => $detail['catatan'] ?? null,
+                    ]);
+
+                    continue;
                 }
 
                 $hargaAcuan = HargaAcuanOrigami::query()
@@ -61,12 +91,9 @@ class PembelianGudangService
                     );
                 }
 
-                $kuantitas = (float) $detail['kuantitas'];
-                $hargaInvoice = (float) $detail['harga_invoice'];
                 $hargaAcuanValue = (float) $hargaAcuan->harga_acuan;
 
                 $nilaiAcuan = $kuantitas * $hargaAcuanValue;
-                $nilaiInvoice = $kuantitas * $hargaInvoice;
                 $selisihNominal = $nilaiInvoice - $nilaiAcuan;
 
                 $persenSelisih = $hargaAcuanValue > 0
@@ -87,6 +114,9 @@ class PembelianGudangService
 
                 $pembelian->detail()->create([
                     'barang_gudang_id' => $barang->id,
+                    'kode_barang_invoice' => $detail['kode_barang_invoice'] ?? null,
+                    'nama_barang_invoice' => $detail['nama_barang_invoice'] ?? null,
+                    'status_pemetaan' => 'cocok',
                     'harga_acuan_id' => $hargaAcuan->id,
                     'kuantitas' => $kuantitas,
                     'harga_invoice' => $hargaInvoice,

@@ -15,6 +15,9 @@ class PembelianGudangDetail extends Model
     protected $fillable = [
         'pembelian_gudang_id',
         'barang_gudang_id',
+        'kode_barang_invoice',
+        'nama_barang_invoice',
+        'status_pemetaan',
         'harga_acuan_id',
         'kuantitas',
         'harga_invoice',

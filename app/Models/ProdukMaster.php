@@ -52,4 +52,19 @@ class ProdukMaster extends Model
     {
         return $this->hasMany(TransaksiPenjualan::class, 'sku', 'sku');
     }
+
+    public function hargaAcuanOrigami()
+    {
+        return $this->hasMany(HargaAcuanOrigami::class, 'sku', 'sku');
+    }
+
+    public function hargaAcuanOrigamiAktif()
+    {
+        return $this->hasOne(HargaAcuanOrigami::class, 'sku', 'sku')->where('is_active', true);
+    }
+
+    public function perbandinganHargaStokMasuk()
+    {
+        return $this->hasMany(PerbandinganHargaStokMasuk::class, 'sku', 'sku');
+    }
 }

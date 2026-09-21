@@ -34,6 +34,7 @@ class AlokasiKhususRelationManager extends RelationManager
             TextInput::make('kuantitas')
                 ->required()
                 ->numeric()
+                ->minValue(0)
                 ->default(0),
         ]);
     }
