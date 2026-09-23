@@ -15,6 +15,7 @@ class StokVariasiHarian extends Model
         'tanggal',
         'stok_awal',
         'input',
+        'produksi_input',
         'out',
     ];
 
@@ -22,6 +23,7 @@ class StokVariasiHarian extends Model
         'tanggal' => 'date',
         'stok_awal' => 'decimal:2',
         'input' => 'decimal:2',
+        'produksi_input' => 'decimal:2',
         'out' => 'decimal:2',
     ];
 
@@ -33,7 +35,7 @@ class StokVariasiHarian extends Model
     protected static function booted(): void
     {
         static::saved(function (self $variasiHarian) {
-            if ($variasiHarian->wasRecentlyCreated || ! $variasiHarian->wasChanged(['stok_awal', 'input', 'out'])) {
+            if ($variasiHarian->wasRecentlyCreated || ! $variasiHarian->wasChanged(['stok_awal', 'input', 'produksi_input', 'out'])) {
                 return;
             }
 
@@ -67,12 +69,40 @@ class StokVariasiHarian extends Model
     }
 
     /**
-     * STOK HASIL = STOK AWAL + INPUT
+     * Cari (atau siapkan baris baru untuk) snapshot variasi pada tanggal
+     * tertentu, dengan default stok_awal mengikuti pola GenerateStokHarian
+     * (lanjut dari sisa hari sebelumnya). Dipakai oleh ProductionEvent
+     * untuk sinkronisasi produksi_input tanpa duplikasi logic default.
+     */
+    public static function untukSinkronProduksi(int $variasiGudangId, string $tanggal): self
+    {
+        $baris = static::firstOrNew([
+            'variasi_gudang_id' => $variasiGudangId,
+            'tanggal' => $tanggal,
+        ]);
+
+        if (! $baris->exists) {
+            $kemarin = static::where('variasi_gudang_id', $variasiGudangId)
+                ->whereDate('tanggal', '<', $tanggal)
+                ->orderByDesc('tanggal')
+                ->first();
+
+            $baris->stok_awal = $kemarin?->sisa ?? 0;
+            $baris->input = 0;
+            $baris->produksi_input = 0;
+            $baris->out = 0;
+        }
+
+        return $baris;
+    }
+
+    /**
+     * STOK HASIL = STOK AWAL + INPUT (manual) + PRODUKSI_INPUT (auto dari K)
      */
     protected function stokHasil(): Attribute
     {
         return Attribute::make(
-            get: fn () => (float) $this->stok_awal + (float) $this->input,
+            get: fn () => (float) $this->stok_awal + (float) $this->input + (float) $this->produksi_input,
         );
     }
 

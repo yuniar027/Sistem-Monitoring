@@ -210,12 +210,22 @@ class ImportStokHarianExcel extends Command
                         $inputVariasi = (float) ($row[$idxVariasi + 3] ?? 0);
                         $outVariasi = (float) ($row[$idxVariasi + 5] ?? 0);
 
+                        // Cocokkan pakai kategori+nama_dasar+kode_variasi
+                        // (unique key yang sebenarnya sejak migration
+                        // scope_stok_variasi_gudang_by_kategori_nama_dasar),
+                        // bukan barang_gudang_id -- supaya kategori/nama_dasar
+                        // ikut terisi dan gak nyipta baris duplikat per varian
+                        // BT/PD/PJ yang beda barang_gudang_id.
                         $variasi = StokVariasiGudang::firstOrCreate(
                             [
-                                'barang_gudang_id' => $barang->id,
+                                'kategori' => $barang->kategori,
+                                'nama_dasar' => $barang->nama_dasar,
                                 'kode_variasi' => $kodeVariasi,
                             ],
-                            ['stok_aman' => $stokAmanVariasi]
+                            [
+                                'barang_gudang_id' => $barang->id,
+                                'stok_aman' => $stokAmanVariasi,
+                            ]
                         );
 
                         $variasi->harian()->updateOrCreate(

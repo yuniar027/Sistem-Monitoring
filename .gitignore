@@ -25,3 +25,24 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Scratch/debug script sekali pakai (bukan bagian aplikasi)
+/audit-legacy.php
+/audit-legacy-semantic.php
+/cek-harga-acuan.php
+/cek_duplikat_variasi.php
+/debug-shared.php
+/debug-xlsx.php
+/inspect-sheet.php
+/inspect_stk.py
+/test_baca_sheet.php
+/sheet1-debug.xml
+/sharedStrings-debug.xml
+
+# Data/dump hasil audit lokal, jangan ikut ke-commit
+/audit_awan.csv
+/audit_awan.py
+/awan_database.json
+
+# File bisnis sensitif (daftar harga) -- jangan pernah masuk git
+*.xlsx

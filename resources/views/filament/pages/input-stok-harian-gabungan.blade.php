@@ -71,6 +71,7 @@
                         <td style="padding: 0.75rem 1rem; vertical-align: top; text-align: right; white-space: nowrap;">
                             {{ ($this->isiKelompokAction)([
                                 'nama_dasar' => $kelompok['nama_dasar'],
+                                'kategori' => $kelompok['kategori'],
                                 'barang_ids' => $kelompok['topi_pasangan_id']
                                     ? [...$kelompok['anggota']->pluck('id')->toArray(), $kelompok['topi_pasangan_id']]
                                     : $kelompok['anggota']->pluck('id')->toArray(),

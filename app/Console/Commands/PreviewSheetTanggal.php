@@ -40,6 +40,7 @@ class PreviewSheetTanggal extends Command
         'jul' => 7,
         'ag' => 8,    // agt, agts, agst, ags, agustus, august - semua diawali "ag"
         'sep' => 9,
+        'spt' => 9,
         'okt' => 10,
         'oct' => 10,  // ejaan Inggris, beda dari "okt"
         'nov' => 11,

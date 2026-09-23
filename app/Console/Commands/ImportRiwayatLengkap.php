@@ -43,6 +43,7 @@ class ImportRiwayatLengkap extends Command
         'jul' => 7,
         'ag' => 8,
         'sep' => 9,
+        'spt' => 9,
         'okt' => 10,
         'oct' => 10,
         'nov' => 11,
@@ -52,7 +53,7 @@ class ImportRiwayatLengkap extends Command
 
     public function handle(): int
     {
-        ini_set('memory_limit', '1024M');
+        ini_set('memory_limit', '2048M');
         set_time_limit(0);
 
         $path = $this->argument('path');
@@ -88,14 +89,12 @@ class ImportRiwayatLengkap extends Command
             return self::SUCCESS;
         }
 
-        // === TAHAP 2: load HANYA sheet yang mau diimport (hemat memori) ===
-        $this->info('Membaca isi sheet (cuma yang kepake)...');
-        $readerData = IOFactory::createReaderForFile($path);
-        $readerData->setReadDataOnly(true);
-        $readerData->setLoadSheetsOnly(array_keys($petaTanggal));
-        $spreadsheet = $readerData->load($path);
-
-        // === TAHAP 3: proses tiap sheet, tulis data pakai BATCH UPSERT (bukan
+        // === TAHAP 2 & 3: load SATU SHEET saja per iterasi, proses, lalu buang
+        // dari memori sebelum lanjut ke sheet berikutnya. Ini PENTING untuk file
+        // dengan ratusan sheet (mis. 314) -- memuat semuanya sekaligus ke satu
+        // objek Spreadsheet bisa membengkak sampai berGB-GB dan bikin proses
+        // dibunuh paksa oleh OS tanpa sempat melapor error apa pun. Tulis data
+        // pakai BATCH UPSERT (bukan
         // query satu-satu per baris) supaya nggak kena ratusan ribu round-trip
         // ke database cloud ===
         $barangCache = [];
@@ -110,15 +109,28 @@ class ImportRiwayatLengkap extends Command
         $progressBar->start();
 
         foreach ($petaTanggal as $namaSheet => $tanggal) {
+            $spreadsheet = null;
+
             try {
+                // load HANYA sheet ini saja, bukan semuanya sekaligus
+                $readerSheet = IOFactory::createReaderForFile($path);
+                $readerSheet->setReadDataOnly(true);
+                $readerSheet->setLoadSheetsOnly([$namaSheet]);
+                $spreadsheet = $readerSheet->load($path);
+
                 if (! $spreadsheet->sheetNameExists($namaSheet)) {
                     $sheetGagal[] = "{$namaSheet} (tidak ditemukan pas load ulang)";
+                    unset($spreadsheet, $readerSheet);
                     $progressBar->advance();
                     continue;
                 }
 
                 $sheet = $spreadsheet->getSheetByName($namaSheet);
                 $rows = $sheet->toArray(null, true, true, false);
+
+                // sudah dapat array datanya, objek spreadsheet & sheet boleh
+                // dibuang dari memori SEKARANG, sebelum lanjut proses baris
+                unset($sheet, $spreadsheet, $readerSheet);
 
                 if (empty($rows)) {
                     $progressBar->advance();
@@ -274,12 +286,20 @@ class ImportRiwayatLengkap extends Command
                             // per kombinasi (barang, kode_variasi) yang UNIK
                             $variasiCacheKey = $barang->id . '|' . $kodeVariasi;
                             if (! isset($variasiCache[$variasiCacheKey])) {
+                                // Cocokkan pakai kategori+nama_dasar+kode_variasi
+                                // (unique key sebenarnya sejak migration
+                                // scope_stok_variasi_gudang_by_kategori_nama_dasar),
+                                // bukan barang_gudang_id.
                                 $variasi = StokVariasiGudang::firstOrCreate(
                                     [
-                                        'barang_gudang_id' => $barang->id,
+                                        'kategori' => $barang->kategori,
+                                        'nama_dasar' => $barang->nama_dasar,
                                         'kode_variasi' => $kodeVariasi,
                                     ],
-                                    ['stok_aman' => $stokAmanVariasi]
+                                    [
+                                        'barang_gudang_id' => $barang->id,
+                                        'stok_aman' => $stokAmanVariasi,
+                                    ]
                                 );
                                 $variasiCache[$variasiCacheKey] = $variasi;
                                 $totalVariasi++;
@@ -328,6 +348,11 @@ class ImportRiwayatLengkap extends Command
             } catch (\Throwable $e) {
                 $sheetGagal[] = "{$namaSheet} (error: {$e->getMessage()})";
             }
+
+            // paksa buang sisa objek besar dari memori sebelum lanjut ke
+            // sheet berikutnya -- ini kunci supaya proses tetap ringan
+            // walau jumlah sheet-nya ratusan
+            gc_collect_cycles();
 
             $progressBar->advance();
         }

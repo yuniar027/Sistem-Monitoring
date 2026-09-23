@@ -8,6 +8,8 @@ use App\Filament\Pages\LaporanKebutuhanStok;
 use App\Filament\Pages\StokMati;
 use App\Filament\Resources\StokBarangGudangResource;
 use App\Filament\Resources\StokVariasiHarianResource;
+use App\Filament\Resources\StokVariasiGudangs\StokVariasiGudangResource;
+use App\Filament\Resources\ProductionProcessTargets\ProductionProcessTargetResource;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -33,16 +35,14 @@ class GudangPanelProvider extends PanelProvider
             ->login()
             ->authGuard('gudang')
             ->brandName('Umma IMS - Gudang')
-            // resource & page didaftarkan MANUAL (bukan discoverResources),
-            // supaya panel ini cuma nampilin modul Monitoring Stok Ringkas
-            // dan nggak ke-mix sama resource sistem besar di /admin.
             ->resources([
                 StokBarangGudangResource::class,
                 StokVariasiHarianResource::class,
+                StokVariasiGudangResource::class,
+                ProductionProcessTargetResource::class,
                 HargaAcuanOrigamiResource::class,
                 PembelianGudangResource::class,
             ])
-        
             ->pages([
                 GudangBeranda::class,
                 InputStokHarianGabungan::class,

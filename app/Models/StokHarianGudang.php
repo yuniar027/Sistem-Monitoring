@@ -30,20 +30,12 @@ class StokHarianGudang extends Model
     protected static function booted(): void
     {
         static::saved(function (self $harian) {
-            // Kalau ini bukan pembuatan baris baru (generate-harian) dan
-            // rak/input berubah, ripple ke tanggal-tanggal setelahnya.
             if (! $harian->wasRecentlyCreated && $harian->wasChanged(['rak', 'input'])) {
                 static::rippleForward($harian);
             }
         });
     }
 
-    /**
-     * Update rak di tanggal-tanggal SETELAH $acuan supaya selalu
-     * lanjut dari stok_akhir hari sebelumnya, mirip formula spreadsheet.
-     * Pakai saveQuietly supaya tidak memicu event berulang (infinite loop),
-     * karena rippling sudah dilakukan manual lewat loop ini.
-     */
     public static function rippleForward(self $acuan): void
     {
         $selanjutnya = static::where('barang_gudang_id', $acuan->barang_gudang_id)
@@ -68,10 +60,6 @@ class StokHarianGudang extends Model
         return $this->belongsTo(StokBarangGudang::class, 'barang_gudang_id');
     }
 
-    /**
-     * Alokasi khusus (kolom K) di-scope ke barang & tanggal yang sama
-     * dengan snapshot harian ini.
-     */
     public function alokasiKhusus(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(StokAlokasiKhususHarian::class, 'barang_gudang_id', 'barang_gudang_id')
@@ -79,8 +67,15 @@ class StokHarianGudang extends Model
     }
 
     /**
-     * STOK SIAP = RAK + INPUT (hari ini)
+     * Event produksi (Produksi K) yang memakai barang ini sebagai SOURCE,
+     * di-scope ke tanggal yang sama dengan snapshot harian ini.
      */
+    public function productionEvents(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ProductionEvent::class, 'barang_gudang_id', 'barang_gudang_id')
+            ->where('tanggal', $this->tanggal);
+    }
+
     protected function stokSiap(): Attribute
     {
         return Attribute::make(
@@ -89,9 +84,10 @@ class StokHarianGudang extends Model
     }
 
     /**
-     * STOK AKHIR = STOK SIAP - total kuantitas alokasi khusus (kolom K)
-     * pada tanggal yang sama. Alokasi khusus dan variasi (Table 2) itu
-     * dua hal yang independen -- variasi TIDAK mengurangi stok_akhir ini.
+     * STOK AKHIR = STOK SIAP - total alokasi khusus - total source_quantity
+     * yang dipakai proses Produksi K pada tanggal yang sama. Barang yang
+     * jadi SOURCE produksi (mis. "...BT") ikut berkurang stoknya persis
+     * seperti formula Excel aslinya (=E2-F2-G2-...).
      */
     protected function stokAkhir(): Attribute
     {
@@ -101,14 +97,15 @@ class StokHarianGudang extends Model
                     ->whereDate('tanggal', $this->tanggal)
                     ->sum('kuantitas');
 
-                return $this->stok_siap - (float) $totalAlokasiKhusus;
+                $totalKonsumsiProduksi = ProductionEvent::where('barang_gudang_id', $this->barang_gudang_id)
+                    ->whereDate('tanggal', $this->tanggal)
+                    ->sum('source_quantity');
+
+                return $this->stok_siap - (float) $totalAlokasiKhusus - (float) $totalKonsumsiProduksi;
             },
         );
     }
 
-    /**
-     * PERMINTAAN H = STOK AKHIR - STOK AMAN (dari master barang)
-     */
     protected function permintaanH(): Attribute
     {
         return Attribute::make(

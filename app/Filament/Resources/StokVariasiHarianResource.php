@@ -30,14 +30,6 @@ class StokVariasiHarianResource extends Resource
         return \Illuminate\Support\Facades\Auth::guard('gudang')->user()?->isPabrik() ?? false;
     }
 
-    /**
-     * Urutan prioritas motif/warna — dipakai baik untuk menentukan label
-     * kelompok (motifGroup) maupun urutan SQL (motifOrderCase), supaya
-     * kedua logic itu SELALU konsisten satu sama lain (satu sumber,
-     * bukan didefinisikan dua kali).
-     */
-    private const MOTIF_KEYWORDS = ['COKLAT', 'ABU', 'PINK', 'NAVY', 'SAGE', 'IKAN', 'KREM', 'CREM', 'PEACH', 'GOLD'];
-
     public static function form(Schema $schema): Schema
     {
         $readOnly = static::isPabrik();
@@ -52,10 +44,16 @@ class StokVariasiHarianResource extends Resource
                 ->numeric()
                 ->disabled($readOnly),
             TextInput::make('input')
-                ->label('Input')
+                ->label('Input Manual')
+                ->helperText('Input manual di luar Produksi K. Hasil Produksi K masuk otomatis, tidak lewat field ini.')
                 ->required()
                 ->numeric()
                 ->disabled($readOnly),
+            TextInput::make('produksi_input')
+                ->label('Input dari Produksi K')
+                ->helperText('Terisi otomatis dari Produksi K (menu Input Stok Harian). Tidak bisa diedit manual.')
+                ->numeric()
+                ->disabled(),
             TextInput::make('out')
                 ->label('Out')
                 ->required()
@@ -69,43 +67,21 @@ class StokVariasiHarianResource extends Resource
         return parent::getEloquentQuery()->with(['variasiGudang.barangGudang']);
     }
 
-    private static function motifGroup(StokVariasiHarian $record): string
+    private static function kategoriNamaDasarGroup(StokVariasiHarian $record): string
     {
         $barang = $record->variasiGudang?->barangGudang;
-        $nama = strtoupper((string) $barang?->nama_barang);
-        $motif = collect(self::MOTIF_KEYWORDS)
-            ->first(fn (string $kata): bool => str_contains($nama, $kata)) ?? 'LAINNYA';
         $kategori = StokBarangGudangResource::kategoriOptions()[$barang?->kategori] ?? ($barang?->kategori ?? 'Tanpa Kategori');
+        $namaDasar = $barang?->nama_dasar ?? $barang?->nama_barang ?? 'Tanpa Nama';
 
-        return "{$kategori} {$motif}";
-    }
-
-    /**
-     * CASE SQL yang meniru persis urutan prioritas motifGroup() di atas
-     * (keyword pertama yang cocok menang), supaya baris-baris dengan
-     * label kelompok yang sama benar-benar bersebelahan di hasil query —
-     * bukan cuma dikelompokkan tampilannya doang. Filament butuh data
-     * yang sudah terurut oleh kunci grup, kalau tidak baris "Origami
-     * Coklat" bisa pecah jadi beberapa blok terpisah (ini bug yang lagi
-     * diperbaiki).
-     */
-    private static function motifOrderCase(): string
-    {
-        $whens = collect(self::MOTIF_KEYWORDS)
-            ->map(fn (string $kata, int $i): string => "WHEN UPPER(stok_barang_gudang.nama_barang) LIKE '%{$kata}%' THEN " . ($i + 1))
-            ->implode(' ');
-
-        $fallback = count(self::MOTIF_KEYWORDS) + 1;
-
-        return "CASE {$whens} ELSE {$fallback} END";
+        return "{$kategori} — {$namaDasar}";
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->defaultGroup(
-                Group::make('motif_group')
-                    ->label('Kelompok Motif/Warna')
+                Group::make('kategori_namadasar_group')
+                    ->label('Kategori & Nama Barang')
                     ->collapsible()
                     ->titlePrefixedWithLabel(false)
                     ->orderQueryUsing(
@@ -119,16 +95,17 @@ class StokVariasiHarianResource extends Resource
                                 // di-join bakal tabrakan dan merusak primary key hasil hydrate model.
                                 ->select('stok_variasi_harian.*')
                                 ->orderBy('stok_barang_gudang.kategori', $direction)
-                                ->orderByRaw(static::motifOrderCase() . " {$direction}")
-                                ->orderBy('stok_variasi_gudang.kode_variasi')
-                                ->orderBy('stok_barang_gudang.nama_barang');
+                                ->orderByRaw(
+                                    "regexp_replace(regexp_replace(trim(stok_barang_gudang.nama_barang), '\\s*-\\s*UM$', '', 'i'), '\\s+(BT|PD|PJ)$', '', 'i') {$direction}"
+                                )
+                                ->orderBy('stok_variasi_gudang.kode_variasi');
                         }
                     )
                     ->getKeyFromRecordUsing(
-                        fn (StokVariasiHarian $record): string => static::motifGroup($record)
+                        fn (StokVariasiHarian $record): string => static::kategoriNamaDasarGroup($record)
                     )
                     ->getTitleFromRecordUsing(
-                        fn (StokVariasiHarian $record): string => static::motifGroup($record)
+                        fn (StokVariasiHarian $record): string => static::kategoriNamaDasarGroup($record)
                     )
             )
             ->groupingSettingsHidden()
@@ -138,7 +115,10 @@ class StokVariasiHarianResource extends Resource
                 TextColumn::make('variasiGudang.kode_variasi')->label('Kode Variasi')->sortable(),
                 TextColumn::make('tanggal')->date()->sortable(),
                 TextColumn::make('stok_awal')->label('Stok Awal'),
-                TextColumn::make('input')->label('Input'),
+                TextColumn::make('input')->label('Input Manual'),
+                TextColumn::make('produksi_input')
+                    ->label('Input Produksi K')
+                    ->toggleable(),
                 TextColumn::make('stok_hasil')
                     ->label('Stok Hasil')
                     ->state(fn (StokVariasiHarian $record) => $record->stok_hasil),

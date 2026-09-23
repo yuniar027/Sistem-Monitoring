@@ -7,6 +7,9 @@ use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use App\Filament\Pages\Dashboard as AppDashboard;
+use App\Filament\Pages\ArusKasPage;
+use App\Filament\Pages\BiayaOperasionalPage;
+// (Tambahkan *use* untuk halaman admin lainnya di sini jika ada)
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -34,9 +37,12 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::hex('#7cd259'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
-            ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
+            // BARIS discoverPages DIHAPUS SUPAYA TIDAK BENTROK
             ->pages([
                 AppDashboard::class,
+                ArusKasPage::class,
+                BiayaOperasionalPage::class,
+                // Daftarkan halaman-halaman khusus admin lainnya secara manual di sini
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([

@@ -2,16 +2,17 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\ProductionEvent;
 use App\Models\ProductionProcess;
 use App\Models\ProductionProcessTarget;
 use App\Models\StokAlokasiKhususHarian;
 use App\Models\StokBarangGudang;
+use App\Models\StokVariasiGudang;
 use App\Services\ProductionService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -23,7 +24,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
 class InputStokHarianGabungan extends Page implements HasActions, HasForms
 {
@@ -75,13 +76,6 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
         $this->page = 1;
     }
 
-    protected function getHeaderActions(): array
-    {
-        return [
-            $this->buatProduksiAction(),
-        ];
-    }
-
     public function isPabrik(): bool
     {
         return Auth::guard('gudang')->user()?->isPabrik() ?? false;
@@ -93,113 +87,6 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
             StokBarangGudang::KATEGORI_AWAN => 'Awan',
             StokBarangGudang::KATEGORI_ORIGAMI => 'Origami',
         ];
-    }
-
-    protected function buatProduksiAction(): Action
-    {
-        return Action::make('produksi')
-            ->label('Produksi K')
-            ->icon('heroicon-o-cog-6-tooth')
-            ->modalHeading('Catat Produksi K')
-            ->schema([
-                DatePicker::make('tanggal')
-                    ->label('Tanggal')
-                    ->default(fn (): string => $this->tanggal)
-                    ->required(),
-
-                Select::make('barang_gudang_id')
-                    ->label('Barang Source')
-                    ->options(
-                        fn (): array => StokBarangGudang::query()
-                            ->orderBy('nama_barang')
-                            ->pluck('nama_barang', 'id')
-                            ->all()
-                    )
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-
-                Select::make('production_process_id')
-                    ->label('Proses K')
-                    ->options(
-                        fn (): array => ProductionProcess::query()
-                            ->orderBy('kode_proses')
-                            ->pluck('kode_proses', 'id')
-                            ->all()
-                    )
-                    ->searchable()
-                    ->preload()
-                    ->live()
-                    ->afterStateUpdated(
-                        fn (Set $set): mixed => $set(
-                            'production_process_target_id',
-                            null
-                        )
-                    )
-                    ->required(),
-
-                Select::make('production_process_target_id')
-                    ->label('Target Variation')
-                    ->options(function (Get $get): array {
-                        $processId = $get('production_process_id');
-
-                        if (! $processId) {
-                            return [];
-                        }
-
-                        return ProductionProcessTarget::query()
-                            ->where('production_process_id', $processId)
-                            ->with('variasiGudang')
-                            ->get()
-                            ->mapWithKeys(
-                                fn (ProductionProcessTarget $target): array => [
-                                    $target->id => $target->variasiGudang?->kode_variasi
-                                        ?? "Target #{$target->id}",
-                                ]
-                            )
-                            ->all();
-                    })
-                    ->disabled(
-                        fn (Get $get): bool => ! $get('production_process_id')
-                    )
-                    ->searchable()
-                    ->required(),
-
-                TextInput::make('source_quantity')
-                    ->label('Jumlah Source')
-                    ->numeric()
-                    ->minValue(0.01)
-                    ->step(0.01)
-                    ->required(),
-            ])
-            ->action(function (array $data): void {
-                $target = ProductionProcessTarget::query()
-                    ->whereKey((int) $data['production_process_target_id'])
-                    ->where(
-                        'production_process_id',
-                        (int) $data['production_process_id']
-                    )
-                    ->first();
-
-                if (! $target) {
-                    throw ValidationException::withMessages([
-                        'production_process_target_id' =>
-                            'Target variasi tidak sesuai dengan proses K yang dipilih.',
-                    ]);
-                }
-
-                app(ProductionService::class)->create(
-                    $data['tanggal'],
-                    (int) $data['barang_gudang_id'],
-                    (int) $data['production_process_target_id'],
-                    $data['source_quantity'],
-                );
-
-                Notification::make()
-                    ->title('Produksi K berhasil dicatat')
-                    ->success()
-                    ->send();
-            });
     }
 
     /**
@@ -276,91 +163,145 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
     }
 
     /**
-     * Action kecil "Alokasi Khusus" per varian, dipasang di header
-     * Section masing-masing varian di dalam modal Isi.
+     * Field "Konsumsi" gabungan untuk satu barang: tiap baris dipilih
+     * adminnya sendiri jadi "Proses K Terdaftar" (bikin ProductionEvent,
+     * otomatis nambah produksi_input variasi target) atau "Alokasi
+     * Manual" (bikin StokAlokasiKhususHarian, kode bebas). Dropdown
+     * tipe wajib dipilih manual sesuai kesepakatan -- tidak ditebak
+     * otomatis dari kode yang diketik.
      */
-    protected function buatAlokasiKhususAction(
-        int $barangId,
-        string $namaLabel
-    ): Action {
-        $tanggal = $this->tanggal;
-        $pabrik = $this->isPabrik();
-
-        return Action::make("alokasi_{$barangId}_{$tanggal}")
-            ->label('Alokasi Khusus')
-            ->icon('heroicon-o-adjustments-horizontal')
-            ->size('sm')
-            ->color('gray')
-            ->modalHeading("Alokasi Khusus: {$namaLabel}")
-            ->modalSubmitAction($pabrik ? false : null)
-            ->fillForm(function () use ($barangId, $tanggal) {
-                $entries = StokAlokasiKhususHarian::query()
-                    ->where('barang_gudang_id', $barangId)
-                    ->whereDate('tanggal', $tanggal)
-                    ->get(['kode_alokasi', 'kuantitas'])
-                    ->map(
-                        fn ($e) => [
-                            'kode_alokasi' => $e->kode_alokasi,
-                            'kuantitas' => (float) $e->kuantitas,
-                        ]
-                    )
-                    ->toArray();
-
-                return [
-                    'alokasi' => $entries,
-                ];
+    protected function konsumsiField(int $barangId, ?string $kategori): Repeater
+    {
+        return Repeater::make("konsumsi.{$barangId}")
+            ->label('Konsumsi')
+            ->addActionLabel('Tambah Konsumsi')
+            ->itemLabel(function (?array $state): ?string {
+                return match ($state['tipe'] ?? null) {
+                    'proses_k' => 'Proses K',
+                    'manual' => ! empty($state['kode_alokasi'])
+                        ? $state['kode_alokasi']
+                        : 'Alokasi Manual',
+                    default => null,
+                };
             })
+            ->defaultItems(0)
             ->schema([
-                Repeater::make('alokasi')
-                    ->label('')
-                    ->schema([
-                        TextInput::make('kode_alokasi')
-                            ->label('Kode Alokasi')
-                            ->helperText('Contoh: K 3 SET, K 18, K 48')
-                            ->required(),
-
-                        TextInput::make('kuantitas')
-                            ->numeric()
-                            ->minValue(0)
-                            ->required(),
+                Select::make('tipe')
+                    ->label('Tipe')
+                    ->options([
+                        'proses_k' => 'Proses K Terdaftar',
+                        'manual' => 'Alokasi Manual',
                     ])
-                    ->columns(2)
-                    ->addActionLabel('Tambah Alokasi')
-                    ->disabled($pabrik)
-                    ->dehydrated(! $pabrik),
+                    ->native(false)
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(function ($set): void {
+                        $set('production_process_id', null);
+                        $set('production_process_target_id', null);
+                        $set('source_quantity', null);
+                        $set('kode_alokasi', null);
+                        $set('kuantitas', null);
+                    }),
+
+                Select::make('production_process_id')
+                    ->label('Proses K')
+                    ->options(
+                        fn (): array => ProductionProcess::query()
+                            ->when(
+                                $kategori,
+                                fn ($q) => $q->whereHas(
+                                    'targets.variasiGudang',
+                                    fn ($q2) => $q2->where(
+                                        'kategori',
+                                        $kategori
+                                    )
+                                )
+                            )
+                            ->orderBy('kode_proses')
+                            ->pluck('kode_proses', 'id')
+                            ->all()
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->visible(
+                        fn ($get): bool => $get('tipe') === 'proses_k'
+                    )
+                    ->required(
+                        fn ($get): bool => $get('tipe') === 'proses_k'
+                    )
+                    ->afterStateUpdated(
+                        fn ($set): mixed => $set(
+                            'production_process_target_id',
+                            null
+                        )
+                    ),
+
+                Select::make('production_process_target_id')
+                    ->label('Target Variasi')
+                    ->options(function ($get): array {
+                        $processId = $get('production_process_id');
+
+                        if (! $processId) {
+                            return [];
+                        }
+
+                        return ProductionProcessTarget::query()
+                            ->where('production_process_id', $processId)
+                            ->with('variasiGudang')
+                            ->get()
+                            ->mapWithKeys(
+                                fn (ProductionProcessTarget $target): array => [
+                                    $target->id => $target->variasiGudang?->kode_variasi
+                                        ?? "Target #{$target->id}",
+                                ]
+                            )
+                            ->all();
+                    })
+                    ->searchable()
+                    ->visible(
+                        fn ($get): bool => $get('tipe') === 'proses_k'
+                    )
+                    ->disabled(
+                        fn ($get): bool => ! $get('production_process_id')
+                    )
+                    ->required(
+                        fn ($get): bool => $get('tipe') === 'proses_k'
+                    ),
+
+                TextInput::make('source_quantity')
+                    ->label('Jumlah Source')
+                    ->numeric()
+                    ->minValue(0.01)
+                    ->step(0.01)
+                    ->visible(
+                        fn ($get): bool => $get('tipe') === 'proses_k'
+                    )
+                    ->required(
+                        fn ($get): bool => $get('tipe') === 'proses_k'
+                    ),
+
+                TextInput::make('kode_alokasi')
+                    ->label('Kode Alokasi')
+                    ->helperText('Contoh: K 3 SET, K 18, K 48')
+                    ->visible(
+                        fn ($get): bool => $get('tipe') === 'manual'
+                    )
+                    ->required(
+                        fn ($get): bool => $get('tipe') === 'manual'
+                    ),
+
+                TextInput::make('kuantitas')
+                    ->numeric()
+                    ->minValue(0)
+                    ->visible(
+                        fn ($get): bool => $get('tipe') === 'manual'
+                    )
+                    ->required(
+                        fn ($get): bool => $get('tipe') === 'manual'
+                    ),
             ])
-            ->action(function (array $data) use (
-                $barangId,
-                $tanggal,
-                $pabrik
-            ) {
-                if ($pabrik) {
-                    return;
-                }
-
-                StokAlokasiKhususHarian::query()
-                    ->where('barang_gudang_id', $barangId)
-                    ->whereDate('tanggal', $tanggal)
-                    ->delete();
-
-                foreach ($data['alokasi'] ?? [] as $row) {
-                    if (empty($row['kode_alokasi'])) {
-                        continue;
-                    }
-
-                    StokAlokasiKhususHarian::create([
-                        'barang_gudang_id' => $barangId,
-                        'tanggal' => $tanggal,
-                        'kode_alokasi' => $row['kode_alokasi'],
-                        'kuantitas' => (float) ($row['kuantitas'] ?? 0),
-                    ]);
-                }
-
-                Notification::make()
-                    ->title('Alokasi khusus disimpan')
-                    ->success()
-                    ->send();
-            });
+            ->columns(2);
     }
 
     public function isiKelompokAction(): Action
@@ -369,17 +310,23 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
 
         return Action::make('isiKelompok')
             ->label('Isi')
+            ->modalWidth('4xl')
             ->modalHeading(
                 fn (array $arguments) =>
                     'Isi Stok: ' . ($arguments['nama_dasar'] ?? '')
             )
             ->modalSubmitActionLabel('Simpan')
+            ->modalSubmitAction($pabrik ? false : null)
             ->fillForm(function (array $arguments) {
                 $tanggal = $this->tanggal;
                 $barangIds = $arguments['barang_ids'] ?? [];
+                $kategori = $arguments['kategori'] ?? null;
+                $namaDasar = $arguments['nama_dasar'] ?? null;
 
                 $state = [
                     'barang' => [],
+                    'konsumsi' => [],
+                    'variasi' => [],
                 ];
 
                 foreach ($barangIds as $id) {
@@ -399,12 +346,69 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                         // STOK SIAP = RAK + INPUT
                         'stok_siap' => $rak + $input,
                     ];
+
+                    $konsumsi = [];
+
+                    foreach (
+                        StokAlokasiKhususHarian::query()
+                            ->where('barang_gudang_id', $id)
+                            ->whereDate('tanggal', $tanggal)
+                            ->get()
+                        as $alokasi
+                    ) {
+                        $konsumsi[] = [
+                            'tipe' => 'manual',
+                            'kode_alokasi' => $alokasi->kode_alokasi,
+                            'kuantitas' => (float) $alokasi->kuantitas,
+                        ];
+                    }
+
+                    foreach (
+                        ProductionEvent::query()
+                            ->where('barang_gudang_id', $id)
+                            ->whereDate('tanggal', $tanggal)
+                            ->with('productionProcessTarget')
+                            ->get()
+                        as $event
+                    ) {
+                        $konsumsi[] = [
+                            'tipe' => 'proses_k',
+                            'production_process_id' => $event
+                                ->productionProcessTarget
+                                ?->production_process_id,
+                            'production_process_target_id' =>
+                                $event->production_process_target_id,
+                            'source_quantity' => (float) $event->source_quantity,
+                        ];
+                    }
+
+                    $state['konsumsi'][$id] = $konsumsi;
+                }
+
+                if ($kategori && $namaDasar) {
+                    foreach (
+                        StokVariasiGudang::where('kategori', $kategori)
+                            ->where('nama_dasar', $namaDasar)
+                            ->orderBy('kode_variasi')
+                            ->get() as $variasi
+                    ) {
+                        $vHarian = $variasi->harianPadaTanggal($tanggal);
+
+                        $state['variasi'][$variasi->id] = [
+                            'stok_awal' => (float) ($vHarian->stok_awal ?? 0),
+                            'input' => (float) ($vHarian->input ?? 0),
+                            'produksi_input' => (float) ($vHarian->produksi_input ?? 0),
+                            'out' => (float) ($vHarian->out ?? 0),
+                        ];
+                    }
                 }
 
                 return $state;
             })
             ->schema(function (array $arguments) use ($pabrik) {
                 $barangIds = $arguments['barang_ids'] ?? [];
+                $kategori = $arguments['kategori'] ?? null;
+                $namaDasar = $arguments['nama_dasar'] ?? null;
 
                 $schema = [];
 
@@ -430,12 +434,6 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                         );
 
                     $schema[] = Section::make($labelSeksi)
-                        ->headerActions([
-                            $this->buatAlokasiKhususAction(
-                                $id,
-                                $labelSeksi
-                            ),
-                        ])
                         ->schema([
                             TextInput::make("barang.{$id}.rak")
                                 ->label('Rak')
@@ -504,15 +502,72 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                                 ->numeric()
                                 ->disabled()
                                 ->dehydrated(false),
+
+                            $this->konsumsiField($id, $kategori)
+                                ->disabled($pabrik)
+                                ->dehydrated(! $pabrik)
+                                ->columnSpanFull(),
                         ])
                         ->columns(2);
                 }
 
+                if ($kategori && $namaDasar) {
+                    $variasiList = StokVariasiGudang::where('kategori', $kategori)
+                        ->where('nama_dasar', $namaDasar)
+                        ->orderBy('kode_variasi')
+                        ->get();
+
+                    if ($variasiList->isNotEmpty()) {
+                        $schema[] = Section::make('Variasi')
+                            ->columnSpanFull()
+                            ->schema(
+                                $variasiList->map(function (StokVariasiGudang $variasi) use ($pabrik) {
+                                    $id = $variasi->id;
+
+                                    return Section::make($variasi->kode_variasi)
+                                        ->schema([
+                                            TextInput::make("variasi.{$id}.stok_awal")
+                                                ->label('Stok Awal')
+                                                ->numeric()
+                                                ->disabled()
+                                                ->dehydrated(false),
+
+                                            TextInput::make("variasi.{$id}.produksi_input")
+                                                ->label('Input Produksi K')
+                                                ->helperText('Otomatis dari Konsumsi bertipe Proses K di atas, terisi setelah disimpan.')
+                                                ->numeric()
+                                                ->disabled()
+                                                ->dehydrated(false),
+
+                                            TextInput::make("variasi.{$id}.input")
+                                                ->label('Input Manual')
+                                                ->numeric()
+                                                ->disabled($pabrik)
+                                                ->dehydrated(! $pabrik),
+
+                                            TextInput::make("variasi.{$id}.out")
+                                                ->label('Out')
+                                                ->numeric()
+                                                ->disabled($pabrik)
+                                                ->dehydrated(! $pabrik),
+                                        ])
+                                        ->columns(4);
+                                })->all()
+                            );
+                    }
+                }
+
                 return $schema;
             })
-            ->action(function (array $data): void {
+            ->action(function (array $data) use ($pabrik): void {
+                if ($pabrik) {
+                    return;
+                }
+
                 $tanggal = $this->tanggal;
                 $jumlahDisimpan = 0;
+
+                DB::transaction(function () use ($data, $tanggal, &$jumlahDisimpan): void {
 
                 foreach ($data['barang'] ?? [] as $barangId => $nilai) {
                     $barang = StokBarangGudang::find($barangId);
@@ -528,7 +583,91 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
 
                         $jumlahDisimpan++;
                     }
+
+                    // Hapus per-record (bukan bulk delete) supaya event
+                    // model (ripple stok, sinkron produksi_input) tetap
+                    // jalan, lalu bangun ulang dari baris Konsumsi yang
+                    // dikirim admin.
+                    StokAlokasiKhususHarian::query()
+                        ->where('barang_gudang_id', $barangId)
+                        ->whereDate('tanggal', $tanggal)
+                        ->get()
+                        ->each
+                        ->delete();
+
+                    ProductionEvent::query()
+                        ->where('barang_gudang_id', $barangId)
+                        ->whereDate('tanggal', $tanggal)
+                        ->get()
+                        ->each
+                        ->delete();
+
+                    foreach (
+                        $data['konsumsi'][$barangId] ?? []
+                        as $row
+                    ) {
+                        if (($row['tipe'] ?? null) === 'manual') {
+                            if (empty($row['kode_alokasi'])) {
+                                continue;
+                            }
+
+                            StokAlokasiKhususHarian::create([
+                                'barang_gudang_id' => $barangId,
+                                'tanggal' => $tanggal,
+                                'kode_alokasi' => $row['kode_alokasi'],
+                                'kuantitas' => (float) (
+                                    $row['kuantitas'] ?? 0
+                                ),
+                            ]);
+
+                            continue;
+                        }
+
+                        if (($row['tipe'] ?? null) === 'proses_k') {
+                            if (
+                                empty($row['production_process_target_id'])
+                                || empty($row['source_quantity'])
+                            ) {
+                                continue;
+                            }
+
+                            $target = ProductionProcessTarget::query()
+                                ->whereKey(
+                                    (int) $row['production_process_target_id']
+                                )
+                                ->where(
+                                    'production_process_id',
+                                    (int) ($row['production_process_id'] ?? 0)
+                                )
+                                ->first();
+
+                            if (! $target) {
+                                continue;
+                            }
+
+                            app(ProductionService::class)->create(
+                                $tanggal,
+                                (int) $barangId,
+                                $target->id,
+                                $row['source_quantity'],
+                            );
+                        }
+                    }
                 }
+
+                foreach ($data['variasi'] ?? [] as $variasiId => $nilai) {
+                    $variasi = StokVariasiGudang::find($variasiId);
+                    $harianVariasi = $variasi?->harianPadaTanggal($tanggal);
+
+                    if ($harianVariasi) {
+                        $harianVariasi->update([
+                            'input' => $nilai['input'] ?? $harianVariasi->input,
+                            'out' => $nilai['out'] ?? $harianVariasi->out,
+                        ]);
+                    }
+                }
+
+                });
 
                 Notification::make()
                     ->title(

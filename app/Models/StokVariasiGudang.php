@@ -15,7 +15,9 @@ class StokVariasiGudang extends Model
     protected $table = 'stok_variasi_gudang';
 
     protected $fillable = [
-        'barang_gudang_id',
+        'barang_gudang_id', // dipertahankan sbg jejak historis, bukan scoping utama lagi
+        'kategori',
+        'nama_dasar',
         'kode_variasi',
         'stok_aman',
     ];

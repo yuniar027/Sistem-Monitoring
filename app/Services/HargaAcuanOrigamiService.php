@@ -66,4 +66,51 @@ class HargaAcuanOrigamiService
             ]);
         });
     }
+    
+    public function tetapkanHargaAktifUntukBarangGudang(
+        int $barangGudangId,
+        float $hargaAcuan,
+        string|Carbon $berlakuMulai,
+        ?string $catatan = null
+    ): HargaAcuanOrigami {
+        $berlakuMulai = Carbon::parse($berlakuMulai)->startOfDay();
+
+        return DB::transaction(function () use (
+            $barangGudangId,
+            $hargaAcuan,
+            $berlakuMulai,
+            $catatan
+        ) {
+            $acuanLama = HargaAcuanOrigami::query()
+                ->where('barang_gudang_id', $barangGudangId)
+                ->aktif()
+                ->orderByDesc('berlaku_mulai')
+                ->lockForUpdate()
+                ->first();
+
+            $sudahSama = $acuanLama
+                && abs((float) $acuanLama->harga_acuan - $hargaAcuan) < 0.01
+                && $acuanLama->berlaku_mulai->isSameDay($berlakuMulai);
+
+            if ($sudahSama) {
+                return $acuanLama;
+            }
+
+            if ($acuanLama) {
+                $acuanLama->update([
+                    'is_active' => false,
+                    'berlaku_sampai' => $berlakuMulai->copy()->subDay(),
+                ]);
+            }
+
+            return HargaAcuanOrigami::create([
+                'barang_gudang_id' => $barangGudangId,
+                'harga_acuan' => $hargaAcuan,
+                'berlaku_mulai' => $berlakuMulai,
+                'berlaku_sampai' => null,
+                'is_active' => true,
+                'catatan' => $catatan,
+            ]);
+        });
+    }
 }
