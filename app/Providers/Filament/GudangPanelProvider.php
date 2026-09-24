@@ -23,7 +23,10 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Filament\Resources\HargaAcuanOrigamis\HargaAcuanOrigamiResource;
+use App\Filament\Resources\HargaAcuanAwans\HargaAcuanAwanResource;
 use App\Filament\Resources\PembelianGudangs\PembelianGudangResource;
+use App\Filament\Pages\AnalisisHargaPage;
+
 
 class GudangPanelProvider extends PanelProvider
 {
@@ -41,13 +44,19 @@ class GudangPanelProvider extends PanelProvider
                 StokVariasiGudangResource::class,
                 ProductionProcessTargetResource::class,
                 HargaAcuanOrigamiResource::class,
+                HargaAcuanAwanResource::class,
                 PembelianGudangResource::class,
             ])
+            ->discoverClusters(
+                in: app_path('Filament/Clusters'),
+                for: 'App\\Filament\\Clusters',
+            )
             ->pages([
                 GudangBeranda::class,
                 InputStokHarianGabungan::class,
                 LaporanKebutuhanStok::class,
                 StokMati::class,
+                AnalisisHargaPage::class
             ])
             ->middleware([
                 EncryptCookies::class,

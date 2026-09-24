@@ -36,10 +36,6 @@ class PembelianGudangService
                 if (! empty($detail['barang_gudang_id'])) {
                     $barang = StokBarangGudang::query()
                         ->whereKey($detail['barang_gudang_id'])
-                        ->where(
-                            'kategori',
-                            StokBarangGudang::KATEGORI_ORIGAMI
-                        )
                         ->first();
                 }
 

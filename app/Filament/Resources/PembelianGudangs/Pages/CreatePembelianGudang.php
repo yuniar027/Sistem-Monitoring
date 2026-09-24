@@ -6,8 +6,13 @@ use App\Filament\Resources\PembelianGudangs\PembelianGudangResource;
 use App\Imports\InvoiceGudangImport;
 use App\Models\StokBarangGudang;
 use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 
@@ -16,6 +21,63 @@ class CreatePembelianGudang extends CreateRecord
     protected static string $resource = PembelianGudangResource::class;
 
     public array $previewItems = [];
+
+    public ?string $previewNomorInvoice = null;
+
+    public ?string $previewTanggal = null;
+
+    public ?string $previewSupplier = null;
+
+    public function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make('Import Invoice')
+                    ->schema([
+                        FileUpload::make('file_invoice')
+                            ->label('File Excel Invoice')
+                            ->acceptedFileTypes([
+                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                'application/vnd.ms-excel',
+                                'text/csv',
+                            ])
+                            ->disk('local')
+                            ->directory('invoice-gudang')
+                            ->required()
+                            ->columnSpanFull(),
+
+                        Textarea::make('catatan')
+                            ->label('Catatan')
+                            ->rows(3)
+                            ->nullable()
+                            ->columnSpanFull(),
+                    ]),
+
+                Section::make('Preview Invoice')
+                    ->schema([
+                        Placeholder::make('preview_invoice')
+                            ->hiddenLabel()
+                            ->content(function ($livewire) {
+                                $items = $livewire->previewItems ?? [];
+
+                                if (empty($items)) {
+                                    return 'Belum ada invoice yang di-import. Klik "Import & Preview" setelah memilih file.';
+                                }
+
+                                return view(
+                                    'filament.pembelian-gudang.preview-invoice',
+                                    [
+                                        'items' => $items,
+                                        'nomorInvoice' => $livewire->previewNomorInvoice,
+                                        'tanggal' => $livewire->previewTanggal,
+                                        'supplier' => $livewire->previewSupplier,
+                                    ]
+                                );
+                            }),
+                    ])
+                    ->columnSpanFull(),
+            ]);
+    }
 
     public function previewInvoice(): void
     {
@@ -40,6 +102,9 @@ class CreatePembelianGudang extends CreateRecord
             );
 
             $this->previewItems = $import->getItems();
+            $this->previewNomorInvoice = $import->getNomorInvoice();
+            $this->previewTanggal = $import->getTanggal();
+            $this->previewSupplier = $import->getSupplier();
 
             if (empty($this->previewItems)) {
                 Notification::make()
@@ -94,11 +159,10 @@ class CreatePembelianGudang extends CreateRecord
         array $data
     ): \Illuminate\Database\Eloquent\Model {
         $items = $this->previewItems;
+        $nomorInvoiceExcel = $this->previewNomorInvoice;
+        $tanggalExcel = $this->previewTanggal;
+        $supplierExcel = $this->previewSupplier;
 
-        /*
-         * Kalau preview belum dijalankan atau state preview hilang,
-         * baca ulang file invoice sebelum menyimpan.
-         */
         if (empty($items) && ! empty($data['file_invoice'])) {
             $import = new InvoiceGudangImport();
 
@@ -109,6 +173,9 @@ class CreatePembelianGudang extends CreateRecord
             );
 
             $items = $import->getItems();
+            $nomorInvoiceExcel = $import->getNomorInvoice();
+            $tanggalExcel = $import->getTanggal();
+            $supplierExcel = $import->getSupplier();
         }
 
         if (empty($items)) {
@@ -128,10 +195,6 @@ class CreatePembelianGudang extends CreateRecord
             if ($kode !== '') {
                 $barang = StokBarangGudang::query()
                     ->where('kode_barang', $kode)
-                    ->where(
-                        'kategori',
-                        StokBarangGudang::KATEGORI_ORIGAMI
-                    )
                     ->first();
             }
 
@@ -153,6 +216,18 @@ class CreatePembelianGudang extends CreateRecord
             );
         }
 
+        $nomorInvoice = $nomorInvoiceExcel ?? ('INV-' . now()->format('YmdHis'));
+        $tanggal = $tanggalExcel ?? now()->toDateString();
+
+        if (\App\Models\PembelianGudang::where('nomor_invoice', $nomorInvoice)->exists()) {
+            throw new RuntimeException(
+                "Invoice dengan nomor \"{$nomorInvoice}\" sudah pernah diimport sebelumnya."
+            );
+        }
+
+        $data['nomor_invoice'] = $nomorInvoice;
+        $data['tanggal'] = $tanggal;
+        $data['supplier'] = $supplierExcel ?? ($data['supplier'] ?? null);
         $data['detail'] = $detail;
 
         return app(\App\Services\PembelianGudangService::class)

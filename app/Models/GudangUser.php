@@ -20,6 +20,7 @@ class GudangUser extends Authenticatable implements FilamentUser, HasName
         'email',
         'password',
         'role',
+        'akses_keuangan',
     ];
 
     protected $hidden = [
@@ -30,6 +31,7 @@ class GudangUser extends Authenticatable implements FilamentUser, HasName
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'akses_keuangan' => 'boolean',
     ];
 
     public function canAccessPanel(Panel $panel): bool
@@ -46,6 +48,11 @@ class GudangUser extends Authenticatable implements FilamentUser, HasName
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function bisaAksesKeuangan(): bool
+    {
+        return (bool) $this->akses_keuangan;
     }
 
     /**
