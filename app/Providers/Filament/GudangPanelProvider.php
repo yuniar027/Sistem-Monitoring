@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\GudangBeranda;
+use App\Filament\Pages\ImportSuratJalanGudang;
 use App\Filament\Pages\InputStokHarianGabungan;
 use App\Filament\Pages\LaporanKebutuhanStok;
 use App\Filament\Pages\StokMati;
@@ -54,6 +55,7 @@ class GudangPanelProvider extends PanelProvider
             ->pages([
                 GudangBeranda::class,
                 InputStokHarianGabungan::class,
+                ImportSuratJalanGudang::class,
                 LaporanKebutuhanStok::class,
                 StokMati::class,
                 AnalisisHargaPage::class
