@@ -28,7 +28,7 @@ class AnalisisHargaPage extends Page
 
     public static function canAccess(): bool
     {
-        return Auth::guard('gudang')->user()?->bisaAksesKeuangan() ?? false;
+        return Auth::guard('gudang')->user()?->canAksesKeuangan() ?? false;
     }
 
     protected function getHeaderActions(): array

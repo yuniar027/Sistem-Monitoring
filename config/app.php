@@ -43,6 +43,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Panel /admin
+    |--------------------------------------------------------------------------
+    |
+    | Panel /admin saat ini tidak dipakai (semua operasional lewat /gudang).
+    | Supaya tidak ada yang tanpa sadar mulai isi data di sana dan bikin
+    | jurnal dobel dengan /gudang, login ke /admin dikunci lewat flag ini.
+    | Set ADMIN_PANEL_ENABLED=true di .env kalau /admin mau diaktifkan lagi.
+    |
+    */
+
+    'admin_panel_enabled' => (bool) env('ADMIN_PANEL_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

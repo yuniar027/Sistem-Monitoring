@@ -38,7 +38,7 @@ class BiayaOperasionalGudangPage extends Page implements HasForms, HasTable
 
     public static function canAccess(): bool
     {
-        return Auth::guard('gudang')->user()?->bisaAksesKeuangan() ?? false;
+        return Auth::guard('gudang')->user()?->canAksesKeuangan() ?? false;
     }
 
     public function mount(): void

@@ -13,6 +13,8 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
+use Illuminate\Database\Eloquent\Model;
 use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 
@@ -118,6 +120,17 @@ class CreatePembelianGudang extends CreateRecord
                 return;
             }
 
+            if (
+                $this->previewNomorInvoice
+                && \App\Models\PembelianGudang::where('nomor_invoice', $this->previewNomorInvoice)->exists()
+            ) {
+                Notification::make()
+                    ->title('Invoice ini sudah pernah diimport.')
+                    ->body("Nomor \"{$this->previewNomorInvoice}\" sudah tersimpan, jadi tidak bisa disimpan lagi.")
+                    ->warning()
+                    ->send();
+            }
+
             Notification::make()
                 ->title('Invoice berhasil dibaca.')
                 ->body(count($this->previewItems) . ' barang ditemukan.')
@@ -155,9 +168,25 @@ class CreatePembelianGudang extends CreateRecord
         ];
     }
 
-    protected function handleRecordCreation(
-        array $data
-    ): \Illuminate\Database\Eloquent\Model {
+    protected function handleRecordCreation(array $data): Model
+    {
+        try {
+            return $this->buatPembelian($data);
+        } catch (RuntimeException $e) {
+            Notification::make()
+                ->title('Invoice gagal disimpan')
+                ->body($e->getMessage())
+                ->danger()
+                ->persistent()
+                ->send();
+
+            // Hentikan proses simpan tanpa menampilkan halaman 500.
+            throw new Halt();
+        }
+    }
+
+    private function buatPembelian(array $data): Model
+    {
         $items = $this->previewItems;
         $nomorInvoiceExcel = $this->previewNomorInvoice;
         $tanggalExcel = $this->previewTanggal;

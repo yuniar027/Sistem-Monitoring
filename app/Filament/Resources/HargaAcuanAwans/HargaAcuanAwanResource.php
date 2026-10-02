@@ -39,7 +39,7 @@ class HargaAcuanAwanResource extends Resource
 
     public static function canAccess(): bool
     {
-        return Auth::guard('gudang')->user()?->bisaAksesKeuangan() ?? false;
+        return Auth::guard('gudang')->user()?->canAksesKeuangan() ?? false;
     }
 
     public static function getEloquentQuery(): Builder

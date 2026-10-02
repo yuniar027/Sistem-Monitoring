@@ -16,22 +16,8 @@
                 </div>
 
                 <div style="display: flex; gap: 0.5rem;">
-                    <button
-                        type="button"
-                        wire:click="simpanKeStokHarian"
-                        wire:confirm="Simpan {{ count(array_filter($preview, fn ($p) => $p['cocok'])) }} kode barang ke Input Stok Harian tanggal {{ \Illuminate\Support\Carbon::parse($tanggalPreview)->translatedFormat('d F Y') }}? Nilai Input yang sudah ada untuk tanggal ini akan DITIMPA."
-                        style="background: #16a34a; color: #fff; border: none; border-radius: 0.5rem; padding: 0.5rem 1rem; font-weight: 600; cursor: pointer;"
-                    >
-                        Simpan ke Input Stok Harian
-                    </button>
-
-                    <button
-                        type="button"
-                        wire:click="batalkanPreview"
-                        style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.5rem 1rem; font-weight: 600; cursor: pointer;"
-                    >
-                        Batal
-                    </button>
+                    {{ ($this->simpanKeStokHarianAction)() }}
+                    {{ ($this->batalkanPreviewAction)() }}
                 </div>
             </div>
 

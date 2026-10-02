@@ -20,7 +20,6 @@ class GudangUser extends Authenticatable implements FilamentUser, HasName
         'email',
         'password',
         'role',
-        'akses_keuangan',
     ];
 
     protected $hidden = [
@@ -31,7 +30,6 @@ class GudangUser extends Authenticatable implements FilamentUser, HasName
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
-        'akses_keuangan' => 'boolean',
     ];
 
     public function canAccessPanel(Panel $panel): bool
@@ -50,9 +48,19 @@ class GudangUser extends Authenticatable implements FilamentUser, HasName
         return $this->role === self::ROLE_ADMIN;
     }
 
-    public function bisaAksesKeuangan(): bool
+    /**
+     * Menu Keuangan (Biaya Operasional, Penjualan, Harga Acuan,
+     * Pembelian/Invoice, Laporan Laba Rugi) HANYA untuk satu akun
+     * Umma (admin sistem), dicek lewat email di config/gudang.php --
+     * BUKAN lewat kolom 'role', karena akun gudang_users lain juga
+     * bisa saja punya role 'admin' tapi tidak boleh akses Keuangan.
+     */
+    public function canAksesKeuangan(): bool
     {
-        return (bool) $this->akses_keuangan;
+        return strcasecmp(
+            (string) $this->email,
+            (string) config('gudang.email_akses_keuangan')
+        ) === 0;
     }
 
     /**

@@ -16,6 +16,7 @@ class PembelianGudangService
         return DB::transaction(function () use ($data) {
             $tanggal = Carbon::parse($data['tanggal']);
             $detailInput = $data['detail'] ?? [];
+            $hargaAcuanKosong = [];
 
             if (empty($detailInput)) {
                 throw new RuntimeException(
@@ -82,9 +83,9 @@ class PembelianGudangService
                     ->first();
 
                 if (! $hargaAcuan) {
-                    throw new RuntimeException(
-                        "Harga acuan belum tersedia untuk barang: {$barang->nama_barang}"
-                    );
+                    $hargaAcuanKosong[] = "{$barang->nama_barang} ({$barang->kode_barang})";
+
+                    continue;
                 }
 
                 $hargaAcuanValue = (float) $hargaAcuan->harga_acuan;
@@ -125,6 +126,16 @@ class PembelianGudangService
                     'status_approval' => $statusApproval,
                     'catatan' => $detail['catatan'] ?? null,
                 ]);
+            }
+
+            if (! empty($hargaAcuanKosong)) {
+                $daftar = array_unique($hargaAcuanKosong);
+
+                // Dilempar di dalam transaksi, jadi semua data yang sudah dibuat dibatalkan.
+                throw new RuntimeException(
+                    'Harga acuan belum tersedia untuk ' . count($daftar) . ' barang: '
+                    . implode('; ', $daftar)
+                );
             }
 
             return $pembelian;

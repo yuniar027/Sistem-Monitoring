@@ -33,6 +33,9 @@ class GenerateStokHarian extends Command
                 'tanggal' => $tanggal->toDateString(),
                 'rak' => $rak,
                 'input' => 0,
+                // UM Titip Pabrik dibawa dari hari sebelumnya (di spreadsheet
+                // angkanya terus terbawa), bukan di-reset ke 0 tiap hari.
+                'um_titip_pabrik' => $harianKemarin?->um_titip_pabrik,
             ]);
             $dibuatBarang++;
         }

@@ -6,6 +6,8 @@ use App\Models\StokBarangGudang;
 use App\Models\StokHarianGudang;
 use App\Services\SuratJalanPdfParser;
 use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -13,8 +15,10 @@ use Filament\Schemas\Schema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
-class ImportSuratJalanGudang extends Page
+class ImportSuratJalanGudang extends Page implements HasActions
 {
+    use InteractsWithActions;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-truck';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Monitoring Stok Ringkas';
@@ -181,6 +185,35 @@ class ImportSuratJalanGudang extends Page
             )
             ->color($jumlahGakCocok > 0 ? 'warning' : 'success')
             ->send();
+    }
+
+    public function simpanKeStokHarianAction(): Action
+    {
+        return Action::make('simpanKeStokHarian')
+            ->label('Simpan ke Input Stok Harian')
+            ->color('success')
+            ->visible(fn () => ! empty($this->preview))
+            ->requiresConfirmation()
+            ->modalHeading('Simpan ke Input Stok Harian?')
+            ->modalDescription(function (): string {
+                $jumlah = count(array_filter($this->preview ?? [], fn ($p) => $p['cocok']));
+                $tanggal = $this->tanggalPreview
+                    ? Carbon::parse($this->tanggalPreview)->translatedFormat('d F Y')
+                    : '-';
+
+                return "Simpan {$jumlah} kode barang ke Input Stok Harian tanggal {$tanggal}? Nilai Input yang sudah ada untuk tanggal ini akan DITIMPA.";
+            })
+            ->modalSubmitActionLabel('Ya, Simpan')
+            ->action(fn () => $this->simpanKeStokHarian());
+    }
+
+    public function batalkanPreviewAction(): Action
+    {
+        return Action::make('batalkanPreview')
+            ->label('Batal')
+            ->color('gray')
+            ->visible(fn () => ! empty($this->preview))
+            ->action(fn () => $this->batalkanPreview());
     }
 
     public function simpanKeStokHarian(): void

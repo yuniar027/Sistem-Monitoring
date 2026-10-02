@@ -36,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
             'bahan_baku_masuk' => \App\Models\BahanBakuMasuk::class,
             'pembayaran_hutang' => \App\Models\PembayaranHutang::class,
             'biaya_operasional' => \App\Models\BiayaOperasional::class,
+            'penjualan_gelondongan' => \App\Models\PenjualanGelondongan::class,
         ], false);
 
         // Register observers

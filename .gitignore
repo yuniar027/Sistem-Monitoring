@@ -46,3 +46,6 @@ Thumbs.db
 
 # File bisnis sensitif (daftar harga) -- jangan pernah masuk git
 *.xlsx
+/*.csv
+/*.log
+/*-debug.xml

@@ -13,7 +13,6 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Auth;
 
 class PembelianGudangResource extends Resource
 {
@@ -27,9 +26,9 @@ class PembelianGudangResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    public static function canAccess(): bool 
+    public static function canAccess(): bool
     {
-        return Auth::guard('gudang')->user()?->bisaAksesKeuangan() ?? false;
+        return auth('gudang')->user()?->canAksesKeuangan() ?? false;
     }
 
     public static function form(Schema $schema): Schema
