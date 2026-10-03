@@ -39,10 +39,22 @@ return [
 
     'anthropic' => [
        'api_key' => env('ANTHROPIC_API_KEY'),
-   ],
+   ], 
 
    'n8n' => [
     'import_webhook_url' => env('N8N_IMPORT_WEBHOOK_URL'),
-    'webhook_token'       => env('N8N_WEBHOOK_TOKEN'),
+     'webhook_token'       => env('N8N_WEBHOOK_TOKEN'),
+    ],
+
+    'shopee' => [
+        'mode' => env('SHOPEE_MODE', 'mock'),
+        'partner_id' => env('SHOPEE_PARTNER_ID'),
+        'partner_key' => env('SHOPEE_PARTNER_KEY'),
+        'shop_id' => env('SHOPEE_SHOP_ID'),
+        'redirect_url' => env('SHOPEE_REDIRECT_URL'),
+        'api_base_url' => env(
+            'SHOPEE_API_BASE_URL',
+            'https://partner.shopeemobile.com'
+        ),
     ],
 ];

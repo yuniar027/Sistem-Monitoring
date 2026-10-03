@@ -49,3 +49,6 @@ Thumbs.db
 /*.csv
 /*.log
 /*-debug.xml
+
+/database/*.sqlite
+/hasil-banding.txt
