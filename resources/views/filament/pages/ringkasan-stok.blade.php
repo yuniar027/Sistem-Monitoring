@@ -38,7 +38,10 @@
         </div>
     </div>
 
-    @php $daftar = $this->getKelompokListPaginated(); @endphp
+    @php
+        $daftar = $this->getKelompokListPaginated();
+        $data = $this->dataHalaman($daftar);
+    @endphp
 
     <div style="display: flex; flex-direction: column; gap: 1.25rem;">
         @forelse ($daftar as $kelompok)
@@ -65,8 +68,8 @@
                             <tbody>
                                 @foreach ($kelompok['barang'] as $barang)
                                     @php
-                                        $harian = $barang->harianPadaTanggal($tanggal);
-                                        $stokAkhir = $harian?->stok_akhir ?? 0;
+                                        $harian = $data['harian'][$barang->id] ?? null;
+                                        $stokAkhir = $data['stokAkhir'][$barang->id] ?? 0;
                                         $rendah = $stokAkhir < (float) ($barang->stok_aman ?? 0);
                                     @endphp
                                     <tr style="border-top: 1px solid #f3f4f6; {{ $rendah ? 'background: #fef2f2;' : '' }}">
@@ -103,10 +106,10 @@
                             <tbody>
                                 @forelse ($kelompok['variasi'] as $variasi)
                                     @php
-                                        $harianVariasi = $variasi->harianPadaTanggal($tanggal);
+                                        $harianVariasi = $data['variasiHarian'][$variasi->id] ?? null;
                                         $sisa = $harianVariasi?->sisa ?? 0;
                                         $rendah = $sisa < (float) ($variasi->stok_aman ?? 0);
-                                        $urlEdit = $this->urlEditVariasi($variasi->id, $tanggal);
+                                        $urlEdit = $data['urlEdit'][$variasi->id] ?? null;
                                     @endphp
                                     <tr style="border-top: 1px solid #f3f4f6; {{ $rendah ? 'background: #fef2f2;' : '' }}">
                                         <td style="padding: 0.5rem 1rem; color: #374151;">

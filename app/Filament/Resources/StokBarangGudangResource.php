@@ -32,6 +32,27 @@ class StokBarangGudangResource extends Resource
         return Auth::guard('gudang')->user()?->isPabrik() ?? false;
     }
 
+    // Akun pabrik hanya boleh melihat: tidak boleh tambah, ubah, atau hapus.
+    public static function canCreate(): bool
+    {
+        return ! static::isPabrik();
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return ! static::isPabrik();
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return ! static::isPabrik();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return ! static::isPabrik();
+    }
+
     public static function kategoriOptions(): array
     {
         return [
@@ -94,6 +115,9 @@ class StokBarangGudangResource extends Resource
                 EditAction::make(),
                 DeleteAction::make(),
             ])
+            ->recordUrl(fn (\Illuminate\Database\Eloquent\Model $record): string => static::isPabrik()
+                ? static::getUrl('view', ['record' => $record])
+                : static::getUrl('edit', ['record' => $record]))
             ->defaultSort('nama_barang');
     }
 
@@ -109,6 +133,7 @@ class StokBarangGudangResource extends Resource
         return [
             'index' => Pages\ListStokBarangGudangs::route('/'),
             'create' => Pages\CreateStokBarangGudang::route('/create'),
+            'view' => Pages\ViewStokBarangGudang::route('/{record}'),
             'edit' => Pages\EditStokBarangGudang::route('/{record}/edit'),
         ];
     }

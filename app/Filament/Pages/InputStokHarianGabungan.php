@@ -81,6 +81,17 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
         return Auth::guard('gudang')->user()?->isPabrik() ?? false;
     }
 
+    /**
+     * Stok Mentah Umma diisi oleh pabrik. Akun dengan akses penuh
+     * (sistem@, akses Keuangan) juga boleh mengisi/mengoreksi.
+     */
+    public function bolehIsiStokMentah(): bool
+    {
+        $user = Auth::guard('gudang')->user();
+
+        return (bool) ($user?->isPabrik() || $user?->canAksesKeuangan());
+    }
+
     public function kategoriOptions(): array
     {
         return [
@@ -316,7 +327,6 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                     'Isi Stok: ' . ($arguments['nama_dasar'] ?? '')
             )
             ->modalSubmitActionLabel('Simpan')
-            ->modalSubmitAction($pabrik ? false : null)
             ->fillForm(function (array $arguments) {
                 $tanggal = $this->tanggal;
                 $barangIds = $arguments['barang_ids'] ?? [];
@@ -342,6 +352,9 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                         'um_titip_pabrik' => (float) (
                             $harian->um_titip_pabrik ?? 0
                         ),
+                        'stok_mentah_umma' => $harian?->stok_mentah_umma !== null
+                            ? (float) $harian->stok_mentah_umma
+                            : null,
 
                         // STOK SIAP = RAK + INPUT
                         'stok_siap' => $rak + $input,
@@ -493,7 +506,19 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                                 "barang.{$id}.um_titip_pabrik"
                             )
                                 ->label('UM Titip Pabrik')
-                                ->numeric(),
+                                ->helperText($pabrik ? 'Diisi oleh admin gudang.' : null)
+                                ->numeric()
+                                ->disabled($pabrik)
+                                ->dehydrated(! $pabrik),
+
+                            TextInput::make(
+                                "barang.{$id}.stok_mentah_umma"
+                            )
+                                ->label('Stok Mentah Umma')
+                                ->helperText($this->bolehIsiStokMentah() ? null : 'Diisi oleh pabrik.')
+                                ->numeric()
+                                ->disabled(! $this->bolehIsiStokMentah())
+                                ->dehydrated($this->bolehIsiStokMentah()),
 
                             TextInput::make(
                                 "barang.{$id}.stok_siap"
@@ -561,6 +586,8 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
             })
             ->action(function (array $data) use ($pabrik): void {
                 if ($pabrik) {
+                    $this->simpanStokMentahUmma($data);
+
                     return;
                 }
 
@@ -574,12 +601,22 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                     $harian = $barang?->harianPadaTanggal($tanggal);
 
                     if ($harian) {
-                        $harian->update([
+                        $kolom = [
                             'rak' => $nilai['rak'],
                             'input' => $nilai['input'],
                             'um_titip_pabrik' =>
                                 $nilai['um_titip_pabrik'],
-                        ]);
+                        ];
+
+                        // Hanya ada di data kalau akun ini boleh mengisinya
+                        // (sistem@); untuk gudang@ field ini tidak ikut terkirim.
+                        if (array_key_exists('stok_mentah_umma', $nilai)) {
+                            $kolom['stok_mentah_umma'] = $nilai['stok_mentah_umma'] === ''
+                                ? null
+                                : $nilai['stok_mentah_umma'];
+                        }
+
+                        $harian->update($kolom);
 
                         $jumlahDisimpan++;
                     }
@@ -676,5 +713,42 @@ class InputStokHarianGabungan extends Page implements HasActions, HasForms
                     ->success()
                     ->send();
             });
+    }
+
+    /**
+     * Akun pabrik hanya boleh mengisi Stok Mentah Umma. Sengaja hanya
+     * membaca kunci stok_mentah_umma dari data form: Rak, Input, UM Titip
+     * Pabrik, Konsumsi, dan Variasi tidak disentuh sama sekali, apa pun
+     * isi request-nya.
+     */
+    protected function simpanStokMentahUmma(array $data): void
+    {
+        $tanggal = $this->tanggal;
+        $jumlahDisimpan = 0;
+
+        DB::transaction(function () use ($data, $tanggal, &$jumlahDisimpan): void {
+            foreach ($data['barang'] ?? [] as $barangId => $nilai) {
+                if (! is_array($nilai) || ! array_key_exists('stok_mentah_umma', $nilai)) {
+                    continue;
+                }
+
+                $harian = StokBarangGudang::find($barangId)?->harianPadaTanggal($tanggal);
+
+                if (! $harian) {
+                    continue;
+                }
+
+                $harian->update([
+                    'stok_mentah_umma' => $nilai['stok_mentah_umma'] === '' ? null : $nilai['stok_mentah_umma'],
+                ]);
+
+                $jumlahDisimpan++;
+            }
+        });
+
+        Notification::make()
+            ->title("Stok Mentah Umma berhasil disimpan ({$jumlahDisimpan} varian)")
+            ->success()
+            ->send();
     }
 }

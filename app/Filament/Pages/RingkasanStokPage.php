@@ -4,11 +4,16 @@ namespace App\Filament\Pages;
 
 use App\Filament\Resources\StokBarangGudangResource;
 use App\Filament\Resources\StokVariasiHarianResource;
+use App\Models\ProductionEvent;
+use App\Models\StokAlokasiKhususHarian;
 use App\Models\StokBarangGudang;
+use App\Models\StokHarianGudang;
 use App\Models\StokVariasiGudang;
+use App\Models\StokVariasiHarian;
 use BackedEnum;
 use Filament\Pages\Page;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 
 class RingkasanStokPage extends Page
 {
@@ -74,7 +79,7 @@ class RingkasanStokPage extends Page
      */
     public function getKelompokList()
     {
-        return StokBarangGudang::query()
+        $barangSemua = StokBarangGudang::query()
             ->when(
                 $this->kategoriFilter,
                 fn ($q) => $q->where('kategori', $this->kategoriFilter)
@@ -84,15 +89,21 @@ class RingkasanStokPage extends Page
                 fn ($q) => $q->where('nama_barang', 'ilike', '%' . $this->search . '%')
             )
             ->orderBy('nama_barang')
+            ->get();
+
+        // Satu query untuk semua variasi, bukan satu query per seri.
+        $variasiPerSeri = StokVariasiGudang::query()
+            ->whereIn('kategori', $barangSemua->pluck('kategori')->unique()->values())
+            ->orderBy('kode_variasi')
             ->get()
+            ->groupBy(fn (StokVariasiGudang $v) => $v->kategori . '|' . $v->nama_dasar);
+
+        return $barangSemua
             ->groupBy(fn (StokBarangGudang $b) => $b->kategori . '|' . $b->nama_dasar)
-            ->map(function ($anggota) {
+            ->map(function ($anggota) use ($variasiPerSeri) {
                 $pertama = $anggota->first();
 
-                $variasiList = StokVariasiGudang::where('kategori', $pertama->kategori)
-                    ->where('nama_dasar', $pertama->nama_dasar)
-                    ->orderBy('kode_variasi')
-                    ->get();
+                $variasiList = $variasiPerSeri->get($pertama->kategori . '|' . $pertama->nama_dasar, collect());
 
                 return [
                     'nama_dasar' => $pertama->nama_dasar,
@@ -123,6 +134,78 @@ class RingkasanStokPage extends Page
         );
     }
 
+    /**
+     * Data harian untuk satu halaman, dimuat dengan beberapa query sekaligus
+     * (bukan per baris). Hasilnya dipakai blade lewat dataHalaman().
+     *
+     * @return array{harian: array, stokAkhir: array, variasiHarian: array, urlEdit: array}
+     */
+    public function dataHalaman($daftar): array
+    {
+        $barangIds = [];
+        $variasiIds = [];
+
+        foreach ($daftar as $kelompok) {
+            foreach ($kelompok['barang'] as $b) {
+                $barangIds[] = $b->id;
+            }
+            foreach ($kelompok['variasi'] as $v) {
+                $variasiIds[] = $v->id;
+            }
+        }
+
+        $harian = StokHarianGudang::query()
+            ->whereIn('barang_gudang_id', $barangIds)
+            ->whereDate('tanggal', $this->tanggal)
+            ->get()
+            ->unique('barang_gudang_id')
+            ->keyBy('barang_gudang_id');
+
+        $alokasi = StokAlokasiKhususHarian::query()
+            ->whereIn('barang_gudang_id', $barangIds)
+            ->whereDate('tanggal', $this->tanggal)
+            ->selectRaw('barang_gudang_id, sum(kuantitas) as total')
+            ->groupBy('barang_gudang_id')
+            ->pluck('total', 'barang_gudang_id');
+
+        $produksi = ProductionEvent::query()
+            ->whereIn('barang_gudang_id', $barangIds)
+            ->whereDate('tanggal', $this->tanggal)
+            ->selectRaw('barang_gudang_id, sum(source_quantity) as total')
+            ->groupBy('barang_gudang_id')
+            ->pluck('total', 'barang_gudang_id');
+
+        // Rumus sama dengan accessor stok_akhir: stok siap - alokasi khusus - konsumsi produksi.
+        $stokAkhir = [];
+        foreach ($harian as $barangId => $h) {
+            $stokAkhir[$barangId] = (float) $h->rak + (float) $h->input
+                - (float) ($alokasi[$barangId] ?? 0)
+                - (float) ($produksi[$barangId] ?? 0);
+        }
+
+        $variasiHarian = StokVariasiHarian::query()
+            ->whereIn('variasi_gudang_id', $variasiIds)
+            ->whereDate('tanggal', $this->tanggal)
+            ->get()
+            ->unique('variasi_gudang_id')
+            ->keyBy('variasi_gudang_id');
+
+        $pabrik = Auth::guard('gudang')->user()?->isPabrik() ?? false;
+        $urlEdit = [];
+        foreach ($variasiHarian as $variasiId => $vh) {
+            $urlEdit[$variasiId] = $pabrik
+                ? null
+                : StokVariasiHarianResource::getUrl('edit', ['record' => $vh->id]);
+        }
+
+        return [
+            'harian' => $harian->all(),
+            'stokAkhir' => $stokAkhir,
+            'variasiHarian' => $variasiHarian->all(),
+            'urlEdit' => $urlEdit,
+        ];
+    }
+
     public function kategoriLabel(?string $kategori): string
     {
         return StokBarangGudangResource::kategoriOptions()[$kategori] ?? ($kategori ?? '-');
@@ -130,6 +213,10 @@ class RingkasanStokPage extends Page
 
     public function urlEditVariasi(int $variasiGudangId, string $tanggal): ?string
     {
+        if (\Illuminate\Support\Facades\Auth::guard('gudang')->user()?->isPabrik()) {
+            return null;
+        }
+
         $harian = StokVariasiGudang::find($variasiGudangId)?->harianPadaTanggal($tanggal);
 
         return $harian

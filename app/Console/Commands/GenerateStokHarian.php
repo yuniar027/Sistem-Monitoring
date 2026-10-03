@@ -36,6 +36,9 @@ class GenerateStokHarian extends Command
                 // UM Titip Pabrik dibawa dari hari sebelumnya (di spreadsheet
                 // angkanya terus terbawa), bukan di-reset ke 0 tiap hari.
                 'um_titip_pabrik' => $harianKemarin?->um_titip_pabrik,
+                // Sama seperti di Excel: Stok Mentah Umma juga terbawa dari
+                // hari sebelumnya sampai diubah pabrik.
+                'stok_mentah_umma' => $harianKemarin?->stok_mentah_umma,
             ]);
             $dibuatBarang++;
         }

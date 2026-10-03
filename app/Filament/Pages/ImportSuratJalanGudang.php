@@ -29,6 +29,12 @@ class ImportSuratJalanGudang extends Page implements HasActions
 
     protected string $view = 'filament.pages.import-surat-jalan-gudang';
 
+    public static function canAccess(): bool
+    {
+        // Halaman ini menulis Input stok harian, jadi tidak untuk akun pabrik.
+        return ! (\Illuminate\Support\Facades\Auth::guard('gudang')->user()?->isPabrik() ?? false);
+    }
+
     public ?array $data = [];
 
     /**

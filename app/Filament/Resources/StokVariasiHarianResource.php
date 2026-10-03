@@ -30,6 +30,27 @@ class StokVariasiHarianResource extends Resource
         return \Illuminate\Support\Facades\Auth::guard('gudang')->user()?->isPabrik() ?? false;
     }
 
+    // Akun pabrik hanya boleh melihat: tidak boleh tambah, ubah, atau hapus.
+    public static function canCreate(): bool
+    {
+        return ! static::isPabrik();
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return ! static::isPabrik();
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return ! static::isPabrik();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return ! static::isPabrik();
+    }
+
     public static function form(Schema $schema): Schema
     {
         $readOnly = static::isPabrik();

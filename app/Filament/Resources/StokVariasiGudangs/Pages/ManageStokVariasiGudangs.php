@@ -12,6 +12,10 @@ class ManageStokVariasiGudangs extends ManageRecords
 
     protected function getHeaderActions(): array
     {
+        if (static::getResource()::isPabrik()) {
+            return [];
+        }
+
         return [
             CreateAction::make(),
         ];
